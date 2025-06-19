@@ -1,18 +1,18 @@
 
 
-%% Mex spectogram stuff
+%% spectogram
 
-M = readmatrix("bil2.txt");
+M = readmatrix("bil4.txt");
 
 Mx = M(:,1);
 My = M(:,2);
 
 fs = 100;
-wsize = 500;
-ovlap = 400;
+wsize = 300;
+ovlap = 250;
 Ndft = 1024;
 
-w = rectwin(wsize);
+w = rectwin(wsize); % window function can be changed to something else
 %s = spectrogram(Mx);
 %spectrogram(s(:,7),'yaxis')
 
@@ -29,7 +29,7 @@ threshold = (th_idx-1)*fs/Ndft;    % actual threshold with this index
 [~,f0_relative_idx] = max(abs(s(th_idx:end,:)));  % returns relative index of masked array
 f0_idx = f0_relative_idx + th_idx - 1;            % corresponding index in full array
 
-f_avg = mean(f(f0_idx(15:end)))
+f_avg = mean(f(f0_idx(30:end)))
 %f_avg = mean(f(f0_idx(15:end)))
 wheel_radius = 2;
 v_avg = f_avg*wheel_radius*3.6
@@ -41,21 +41,25 @@ tol = 1e-6;
 S(abs(S) < tol) = 0;
 
 phi_x = angle(S);
-phix_unwrapped = -unwrap(phi_x);
-
+phix_unwrapped = unwrap(phi_x);
 
 model_x = cos(f_avg*2*pi*t);
 x_analytic = hilbert(model_x);
 phi_est = unwrap(angle(x_analytic));
 %phi_est = acos(model_x);
 
+
 figure;
+subplot(1,2,1);
 plot(phix_unwrapped)
 hold on
+plot(-phix_unwrapped)
 plot(model_x)
 plot(phi_est)
-legend('phi','x(t)','phi_{model}')
+legend('phi', '-phi','x(t)','phi_{model}')
+title("acc_x")
 hold off
+
 
 
 
