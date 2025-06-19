@@ -7,9 +7,11 @@ M = readmatrix("bil4.txt");
 Mx = M(:,1);
 My = M(:,2);
 
+Gz = M(:,6);
+
 fs = 100;
 wsize = 300;
-ovlap = 250;
+ovlap = 299;
 Ndft = 1024;
 
 w = rectwin(wsize); % window function can be changed to something else
@@ -29,6 +31,7 @@ threshold = (th_idx-1)*fs/Ndft;    % actual threshold with this index
 [~,f0_relative_idx] = max(abs(s(th_idx:end,:)));  % returns relative index of masked array
 f0_idx = f0_relative_idx + th_idx - 1;            % corresponding index in full array
 
+f_vals = f(f0_idx)
 f_avg = mean(f(f0_idx(30:end)))
 %f_avg = mean(f(f0_idx(15:end)))
 wheel_radius = 2;
@@ -48,6 +51,11 @@ x_analytic = hilbert(model_x);
 phi_est = unwrap(angle(x_analytic));
 %phi_est = acos(model_x);
 
+dt = 1/fs
+gz = cumtrapz(Gz)*dt*pi/180;
+t_gyro = (0:length(gz)-1) *dt;
+gz_interp = interp1(t_gyro,gz,t,"linear","extrap");
+
 
 figure;
 subplot(1,2,1);
@@ -56,7 +64,8 @@ hold on
 plot(-phix_unwrapped)
 plot(model_x)
 plot(phi_est)
-legend('phi', '-phi','x(t)','phi_{model}')
+plot(gz_interp)
+legend('phi', '-phi','x(t)','phi_{model}','gz')
 title("acc_x")
 hold off
 
