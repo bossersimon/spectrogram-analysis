@@ -32,6 +32,19 @@ for i = 1:6
         plot(t,M_filt(:,i))
     end
     grid on
+
+    %if i == 1
+    %    ylabel("Accel [g]")
+    %elseif i == 4
+    %    ylabel("Gyro [°/s]")
+    %end
+    ylabels = ["X [g]", "Y [g]", "Z [g]", "X [°/s]", "Y [°/s]", "Z [°/s]"];
+    ylabel(ylabels(i))
+
+    if i == 3 || i == 6
+        xlabel("Time [s]")
+    end
+    
     %xtickformat("mm:ss")
 end
 linkaxes(ax,"x")
@@ -55,23 +68,24 @@ win = rectwin(wsize); % window function can be changed to something else
 wheel_circ = 1.82;
 v_car = fy*wheel_circ*3.6;
 
-%figure;
-%imagesc(ty, v_car, 10*log10(Py));
-%axis xy;
-%xlabel("Time (s)");
-%ylabel("Speed (km/h)");
-%title("Spectrogram with overlay");
-%grid on;
-%c = colorbar;
-%c.Label.String = 'Power/frequency (dB/Hz)';
+figure;
+imagesc(ty, v_car, 10*log10(Py));
+axis xy;
+xlabel("Time (s)");
+ylabel("Speed (km/h)");
+title("Spectrogram with overlay");
+grid on;
+c = colorbar;
+c.Label.String = 'Power/frequency (dB/Hz)';
 
-%hold on;
-%gyro_vals = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6
-%p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
-%legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest');
+hold on;
+gyro_vals = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6
+p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
+legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest');
 
 
-% Parameter estimation using DFT 
+
+%% Parameter estimation using DFT 
 
 % b(0) = A
 % b(1) = w
@@ -129,7 +143,8 @@ theta_est = theta_raw+phi_offs;
 % DC offset estimate
 B_est = sy(1,:)/sum(win);
 
-b = {A_est, theta_est, B_est};
+%b = {A_est, theta_est, B_est};
+b = {1, theta_est, B_est};
 
 yhat = model(ty,b);
 
@@ -150,13 +165,14 @@ theta_unwr = unwrap(theta_raw);
 %figure;
 %plot(theta_unwr)
 
+fprintf('STFT distance estimate: %.2f\n', theta_unwr(end)*wheel_circ/(2*pi));
 
 %% Parameter estimation using lsq 
 
 model2 = @(b,t) b(1)*sin(2*pi*b(2)*t+b(3)) + b(4);
 % Constraints? If fit tries to "escape"
 
-b0 = [9.82, 1, 0.0, mean(Ay)]; % initial values
+b0 = [0.1, 0.1, 0, mean(Ay)]; % initial values
 
 lb = [0, 0, 0, min(Ay)];
 ub = [10, 40, 2*pi, max(Ay)];
@@ -175,27 +191,27 @@ plot(t,y_fit)
 
 %% Lsq fit for windowed segments
 
-window_size = 70;
+window_size = 6;
 N = length(Ay);
-step = 35;
+%step = 35;
 
 model2 = @(b,t) b(1)*sin(2*pi*b(2)*t+b(3)) + b(4);
 
 b0 = [0.1, 0.1, 0.0, 0]; % initial guess
 
-lb = [0, 0, 0, min(Ay)];
-ub = [10, 40, 2*pi, max(Ay)];
+lb = [-4, 0, 0, min(Ay)];
+ub = [4, 40, 2*pi, max(Ay)];
 
 opts = optimoptions('lsqcurvefit', ...
     'MaxFunctionEvaluations', 5000, ...
      'Display', 'off'); % 'iter'
 
-time = {};
-vals = {};
+time = [];
+vals = [];
 params = {};
 
-for i=1:step:(N-window_size)
-    j = i:(i+window_size+1);
+for i=window_size/2:N-window_size/2
+    j = i-window_size/2+1:(i+window_size/2);
     t_win = t(j);
     Ay_win = Ay(j);
     
@@ -204,25 +220,38 @@ for i=1:step:(N-window_size)
     b_hat = lsqcurvefit(model2,b0,t_rel,Ay_win, lb, ub, opts);
     y_fit = model2(b_hat,t_rel);
 
-    time{end+1} = t_win;
-    vals{end+1} = y_fit;
+    time(i) = t_win(window_size/2);
+    vals(i) = y_fit(window_size/2);
     params{end+1} = b_hat;
 
-
-    dt = t(2)-t(1);
-    delta_t = step*dt;
-    %b0 = [b_hat(1), b_hat(2), 0, b_hat(4)];
-    b0 = [b_hat(1), b_hat(2), mod(b_hat(3)+2*pi*b_hat(2)*delta_t,2*pi), b_hat(4)];
-
+    b0 = b_hat;
 end
 
 figure;
-colors = lines(10); 
-num_colors = size(colors, 1);
+%colors = lines(10); 
+%num_colors = size(colors, 1);
 
 plot(t,Ay, 'Color','k')
 hold on
-for i = 1:length(time)
-    c = colors(mod(i-1, num_colors) + 1, :);  
-    plot(time{i},vals{i},'Color', c, LineWidth=1)
-end
+    %c = colors(mod(i-1, num_colors) + 1, :);  
+plot(time,vals,'Color', 'r')
+
+%% Distance calculation
+
+param_matrix = cell2mat(params');
+freqs = param_matrix(:,2);
+phis = param_matrix(:,3);
+
+t_offset = (window_size/2) / fs;
+t_aligned = time(:)- t_offset;
+t_aligned = t_aligned(2:end-1);
+%time = time(:);
+
+phase = 2*pi*freqs.*t_aligned+phis;
+
+phase_unwr = unwrap(phase);
+
+plot(phase_unwr)
+
+
+%fprintf('LSQ distance estimate: %.2f\n', theta_unwr(end)*wheel_circ/(2*pi));
