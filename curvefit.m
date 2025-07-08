@@ -4,10 +4,20 @@
 
 % Model: y^ = A sin (wt+phi_0) + B
 
-M = readmatrix("recordings/recording_20250701_154938.csv");
+M = readmatrix("recordings/recording_20250701_02.csv");
+Gx = M(:,4);
+Gy = M(:,5);
 Gz = M(:,6);
+G_mag = sqrt(Gx.^2+Gy.^2+Gz.^2);
 
-% Lowpass
+epsilon = 1e-6;
+correction_factor = ones(size(Gz));
+valid = abs(Gz) > epsilon;
+
+correction_factor(valid) = G_mag(valid) ./ abs(Gz(valid));
+Gz_corrected  = correction_factor.*Gz;
+
+% Lowpass 
 fc = 10; 
 fs = 100;
 n = 100; % filter order
@@ -31,6 +41,9 @@ for i = 1:6
     if i<4
         plot(t,M_filt(:,i))
     end
+    if i == 6
+        plot(t,Gz_corrected)
+    end
     grid on
 
     %if i == 1
@@ -51,11 +64,17 @@ linkaxes(ax,"x")
 
 Ax = M_filt(:,1);
 Ay = M_filt(:,2);
+ 
+
+wheel_circ = 1.82;
+angle_est = cumtrapz(Gz)/100;
+
+fprintf('Gyroscope distance estimate: %.2f\n', angle_est(end)*wheel_circ/360);
 
 %% DFT
 
 fs = 100;
-wsize = 200;
+wsize = 100;
 ovlap = wsize-1;
 Ndft = 1024;
 
@@ -65,7 +84,6 @@ win = rectwin(wsize); % window function can be changed to something else
 
 
 % car speed
-wheel_circ = 1.82;
 v_car = fy*wheel_circ*3.6;
 
 figure;
@@ -96,25 +114,22 @@ legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest');
 %model = @(t,b) b(1)*sin(2*pi*b(2)*t + b(3)) + b(4);
 
 % b(2) is the total phase estimate theta_est.
-model = @(t,b) sin(b{2}) + b{3};
+model_dft = @(t,b) b{1}.*sin(b{2}) + b{3};
 
 dt = 1/100;
-N = size(M,1);
-
-
-% Normalization
-%win_energy = sum(w.^2);
-%sf = 2 / sum(w); % scale factor
-%A_est = sf*abs(sy);   % normalized spectrum    
-
+N = size(M,1);   
 
 % frequency and amplitude estimates
-th = 0.5;   % threshold frequency in herz
+th = 1;   % threshold frequency in herz
 th_idx = round(th/(fs/Ndft)) +1;   % index of roughly this frequency
 threshold = (th_idx-1)*fs/Ndft;    % actual threshold with this index
 
 [~,f0_relative_idx] = max(abs(sy(th_idx:end,:)));  % returns relative index of masked array
 f0_idx = f0_relative_idx + th_idx - 1;            % corresponding index in full array
+
+%non_dc_bins = 5:N/2;
+%[~,peak_bin] = max(abs(sy(non_dc_bins)));
+%freq_bin = non_dc_bins(peak_bin);
 
 f_vals = fy(f0_idx);
 
@@ -126,9 +141,10 @@ cols = 1:size(sy,2);   % cols for sub2ind
 Sx = sx(sub2ind(size(sx), f0_idx, cols));  % values of S at wanted frequencies
 Sy = sy(sub2ind(size(sy), f0_idx, cols));
 
-% Normalization
-%A_est = abs(Sy)/sum(win);
 
+%A_est = (abs(Sy)+abs(Sx))/sum(win);
+A_est = 2*abs(Sy/sum(win));
+%A_est = 1;
 % phase offset estimate (phi_0)
 S = Sx + 1j*Sy;
 
@@ -141,12 +157,12 @@ phi_offs = transpose(2*pi*f_vals*wsize/(2*fs));
 theta_est = theta_raw+phi_offs;
 
 % DC offset estimate
-B_est = sy(1,:)/sum(win);
+B_est = sy(1,:)/(sum(win));
 
-%b = {A_est, theta_est, B_est};
-b = {1, theta_est, B_est};
+b = {A_est, theta_est, B_est};
+%b = {1, theta_est, B_est};
 
-yhat = model(ty,b);
+yhat = model_dft(ty,b);
 
 figure;
 dt = 1/100;
