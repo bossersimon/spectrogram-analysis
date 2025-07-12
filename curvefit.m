@@ -4,6 +4,9 @@
 
 % Model: y^ = A sin (wt+phi_0) + B
 
+accelScale = 1/9.82; % scale accelerometer readings
+
+
 M = readmatrix("recordings/recording_20250701_02.csv");
 Gx = M(:,4);
 Gy = M(:,5);
@@ -36,11 +39,14 @@ tiledlayout(3,2,"TileIndexing","columnmajor")
 ax = [];
 for i = 1:6
     ax(end+1) =nexttile;
-    plot(t, M(:,i))
-    hold on
     if i<4
-        plot(t,M_filt(:,i))
+        plot(t, M(:,i)/accelScale)
+        hold on
+        plot(t,M_filt(:,i)/accelScale)
+    else
+        plot(t, M(:,i))
     end
+
     if i == 6
         plot(t,Gz_corrected)
     end
@@ -51,7 +57,12 @@ for i = 1:6
     %elseif i == 4
     %    ylabel("Gyro [°/s]")
     %end
-    ylabels = ["X [g]", "Y [g]", "Z [g]", "X [°/s]", "Y [°/s]", "Z [°/s]"];
+
+    if accelScale < 1
+        ylabels = ["X[m/s²]", "Y [m/s²]", "Z [m/s²]", "X [°/s]", "Y [°/s]", "Z [°/s]"];
+    else
+        ylabels = ["X [g]", "Y [g]", "Z [g]", "X [°/s]", "Y [°/s]", "Z [°/s]"];
+    end
     ylabel(ylabels(i))
 
     if i == 3 || i == 6
@@ -67,9 +78,9 @@ Ay = M_filt(:,2);
  
 
 wheel_circ = 1.82;
-angle_est = cumtrapz(Gz)/100;
+angle_est = cumtrapz(-Gz)/100;
 
-fprintf('Gyroscope distance estimate: %.2f\n', angle_est(end)*wheel_circ/360);
+fprintf('Gyroscope distance estimate: %.2f m\n', angle_est(end)*wheel_circ/360);
 
 %% DFT
 
@@ -89,12 +100,12 @@ v_car = fy*wheel_circ*3.6;
 figure;
 imagesc(ty, v_car, 10*log10(Py));
 axis xy;
-xlabel("Time (s)");
-ylabel("Speed (km/h)");
+xlabel("Time [s]");
+ylabel("Speed [km/h]");
 title("Spectrogram with overlay");
 grid on;
 c = colorbar;
-c.Label.String = 'Power/frequency (dB/Hz)';
+c.Label.String = 'Power/frequency [dB/Hz]';
 
 hold on;
 gyro_vals = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6
@@ -170,44 +181,30 @@ N = size(M,1);
 t = (0:N-1)*dt;
 t= transpose(t);
 
-plot(t, M_filt(:,2))
+plot(t, M_filt(:,2)/accelScale)
 hold on
-plot(ty,yhat)
+plot(ty,yhat/accelScale)
 grid on
 %xtickformat("mm:ss")
-
+xlabel("Time [s]");
+if accelScale < 1
+    ylabel("Acceleration [m/s²]");
+else
+    ylabel("Acceleration [g]");
+end
 % Then we could plot the unwrapped phase:
 theta_unwr = unwrap(theta_raw);
-%figure;
-%plot(theta_unwr)
+theta_unwr = theta_unwr-theta_unwr(1); % remove initial phase
+figure;
+plot(ty, theta_unwr)
+xlabel("Time [s]");
+ylabel("Angle [rad]");
 
-fprintf('STFT distance estimate: %.2f\n', theta_unwr(end)*wheel_circ/(2*pi));
+fprintf('STFT distance estimate: %.2f m\n', theta_unwr(end)*wheel_circ/(2*pi));
 
 %% Parameter estimation using lsq 
 
-model2 = @(b,t) b(1)*sin(2*pi*b(2)*t+b(3)) + b(4);
-% Constraints? If fit tries to "escape"
-
-b0 = [0.1, 0.1, 0, mean(Ay)]; % initial values
-
-lb = [0, 0, 0, min(Ay)];
-ub = [10, 40, 2*pi, max(Ay)];
-
-opts = optimoptions('lsqcurvefit', ...
-    'MaxFunctionEvaluations', 5000, ...
-    'Display', 'iter'); % or 'off' if you want no output
-
-b_hat = lsqcurvefit(model2,b0,t,Ay, lb, ub, opts);
-
-y_fit = model2(b_hat,t);
-
-plot(t,M_filt(:,2))
-hold on
-plot(t,y_fit)
-
-%% Lsq fit for windowed segments
-
-window_size = 6;
+window_size = 10;
 N = length(Ay);
 %step = 35;
 
@@ -215,8 +212,8 @@ model2 = @(b,t) b(1)*sin(2*pi*b(2)*t+b(3)) + b(4);
 
 b0 = [0.1, 0.1, 0.0, 0]; % initial guess
 
-lb = [-4, 0, 0, min(Ay)];
-ub = [4, 40, 2*pi, max(Ay)];
+lb = [0, 0, 0, min(Ay)];
+ub = [4, 20, 2*pi, max(Ay)];
 
 opts = optimoptions('lsqcurvefit', ...
     'MaxFunctionEvaluations', 5000, ...
@@ -226,6 +223,7 @@ time = [];
 vals = [];
 params = {};
 
+k=1;
 for i=window_size/2:N-window_size/2
     j = i-window_size/2+1:(i+window_size/2);
     t_win = t(j);
@@ -236,21 +234,29 @@ for i=window_size/2:N-window_size/2
     b_hat = lsqcurvefit(model2,b0,t_rel,Ay_win, lb, ub, opts);
     y_fit = model2(b_hat,t_rel);
 
-    time(i) = t_win(window_size/2);
-    vals(i) = y_fit(window_size/2);
-    params{end+1} = b_hat;
+    time(k) = t_win(window_size/2);
+    vals(k) = y_fit(window_size/2);
+    params{k} = b_hat;
 
     b0 = b_hat;
+    k=k+1;
 end
 
 figure;
 %colors = lines(10); 
 %num_colors = size(colors, 1);
 
-plot(t,Ay, 'Color','k')
+
+plot(t,Ay/accelScale, 'Color','k')
 hold on
     %c = colors(mod(i-1, num_colors) + 1, :);  
-plot(time,vals,'Color', 'r')
+plot(time,vals/accelScale,'Color', 'r')
+if accelScale < 1
+    ylabel('Acceleration [m/s²]')
+else
+    ylabel('Acceleration [g]')
+end
+xlabel('Time [s]')
 
 %% Distance calculation
 
@@ -258,16 +264,15 @@ param_matrix = cell2mat(params');
 freqs = param_matrix(:,2);
 phis = param_matrix(:,3);
 
-t_offset = (window_size/2) / fs;
-t_aligned = time(:)- t_offset;
-t_aligned = t_aligned(2:end-1);
+%t_offset = (window_size/2) / fs;
+%t_aligned = time(:)- t_offset;
+%t_stripped = t_aligned(3:end-2);
 %time = time(:);
 
-phase = 2*pi*freqs.*t_aligned+phis;
-
+phase = 2*pi*freqs.*time(:)+phis;
 phase_unwr = unwrap(phase);
 
+figure;
 plot(phase_unwr)
 
-
-%fprintf('LSQ distance estimate: %.2f\n', theta_unwr(end)*wheel_circ/(2*pi));
+fprintf('LSQ distance estimate: %.2f\n', theta_unwr(end)*wheel_circ/(2*pi));
