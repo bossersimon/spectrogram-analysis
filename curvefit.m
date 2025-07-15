@@ -21,7 +21,7 @@ correction_factor(valid) = G_mag(valid) ./ abs(Gz(valid));
 Gz_corrected  = correction_factor.*Gz;
 
 % Lowpass 
-fc = 10; 
+fc = 6; 
 fs = 100;
 n = 100; % filter order
 b = fir1(n, (fc/(fs/2)), 'low');
@@ -121,28 +121,30 @@ legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest');
 %model = @(t,b) b(1)*sin(2*pi*b(2)*t + b(3)) + b(4);
 
 % b(2) is the total phase estimate theta_est.
-model_dft = @(t,b) b{1}.*cos(b{2}) + b{3};
+model_dft = @(t,b) cos(b{1}) + b{2};
 
 dt = 1/100;
 N = size(M,1);   
 
 % 1 Hz = 1.82 m/s = 6.55 km/h
 % frequency and amplitude estimates
-th = 0.5;   % threshold frequency in Hz
+th = 1;   % threshold frequency in Hz
 th_idx = round(th/(fs/Ndft)) +1;   % index of roughly this frequency
 threshold = (th_idx-1)*fs/Ndft;    % actual threshold with this index
 
-%[~,f0y_relative_idx] = max(abs(sy(th_idx:end,:)));  % returns relative index of masked array
+[~,f0y_relative_idx] = max(abs(sy(th_idx:end,:)));  % returns relative index of masked array
 %[~,f0x_relative_idx] = max(abs(sx(th_idx:end,:)));  % returns relative index of masked array
 
-%f0_idx = f0y_relative_idx + th_idx - 1;            % corresponding index in full array
+f0_idx = f0y_relative_idx + th_idx - 1;            % corresponding index in full array
 %f0x_idx = f0x_relative_idx + th_idx - 1;            % corresponding index in full array
 %f0_idx = round((f0y_idx+f0x_idx)/2);
 
 DC_amplitude = abs(sy(1,:));
 target_amplitude = max(abs(sy(th_idx:end,:)),[],1);
 %ratio = target_amplitude ./ DC_amplitude;
-motion_detected = target_amplitude > 20;
+
+
+motion_detected = target_amplitude > 25; % This value determines when we start looking only above the threshold. 
 
 f0_idx = nan(1,size(sy,2));
 
@@ -165,14 +167,6 @@ cols = 1:size(sy,2);   % cols for sub2ind
 Sx = sx(sub2ind(size(sx), f0_idx, cols));  % values of S at wanted frequencies
 Sy = sy(sub2ind(size(sy), f0_idx, cols));
 
-%Ay_est = 2*abs(Sy/sum(win));
-%Ax_est = 2*abs(Sx/sum(win));
-%Ax_est(f0_idx==1) = Ax_est(f0_idx==1)/2;
-%Ay_est(f0_idx==1) = Ax_est(f0_idx==1)/2;
-
-Ax_est = 1;
-Ay_est = 1;
-
 % phase offset estimate (phi_0)
 S = Sx + 1j*Sy;
 
@@ -188,15 +182,15 @@ phix_offs = transpose(2*pi*f_vals*wsize/(2*fs));
 thetax_est = theta_dft+phix_offs;
 
 % DC offset estimate
-%By_est = sy(1,:)/(sum(win));
-%Bx_est = sx(1,:)/(sum(win));
+By_est = sy(1,:)/(sum(win));
+Bx_est = sx(1,:)/(sum(win));
 %Bx_est(f0_idx==1) = 0;
 %By_est(f0_idx==1) = 0;
-Bx_est=0;
-By_est=0;
+%Bx_est=0;
+%By_est=0;
 
-by = {Ay_est, thetay_est-pi/2, By_est};
-bx = {Ax_est, thetax_est, Bx_est};
+by = {thetay_est-pi/2, By_est};
+bx = {thetax_est, Bx_est};
 
 % Want this to work
 %by = {1, thetay_est, By_est};
@@ -206,6 +200,9 @@ bx = {Ax_est, thetax_est, Bx_est};
 
 yhat = model_dft(ty,by);
 xhat = model_dft(tx,bx);
+
+yhat_corrected = yhat-By_est;
+xhat_corrected = xhat-Bx_est;
 
 figure('Name','Raw + reconstructed');
 dt = 1/100;
@@ -247,19 +244,18 @@ linkaxes(ax,"x")
 %theta_dft = unwrap(theta_dft)
 theta_dft_wrapped = wrapToPi(thetay_est - thetay_est(1));
 
-theta_alt = atan2(yhat,xhat);
-theta_alt = -theta_alt;
+theta_alt = atan2(yhat_corrected,xhat_corrected);
 theta_alt = wrapToPi(theta_alt - theta_alt(1));
 %theta_alt = unwrap(theta_alt-theta_alt(1));
 
-theta_raw= atan2(Ax,Ay);
+theta_raw= atan2(Ay,Ax);
 theta_raw = wrapToPi(theta_raw - theta_raw(1));
 
 %theta_raw = theta_raw;
 %theta_raw = unwrap(theta_raw-theta_raw(1));
 
 figure;
-plot(ty, -theta_dft_wrapped, 'DisplayName','Angle(S)')
+plot(ty, theta_dft_wrapped, 'DisplayName','Angle(S)')
 hold on
 plot(ty,theta_alt+0.01, 'DisplayName', 'atan2(yhat,xhat)')
 plot(t,theta_raw,'DisplayName','arg raw')
@@ -268,26 +264,31 @@ ylabel("Angle [rad]");
 legend
 grid on
 
+%%
+
+Ay_corrected = Ay(wsize/2:end-wsize/2) - By_est.';
+Ax_corrected = Ax(wsize/2:end-wsize/2) - Bx_est.';
+
+figure;
+plot(Ax,Ay, 'DisplayName','raw')
+hold on
+plot(Ax_corrected, Ay_corrected, 'DisplayName', 'corrected')
+xlabel('x')
+ylabel('y')
+legend
+
 fprintf('STFT distance estimate: %.2f m\n', theta_dft(end)*wheel_circ/(2*pi));
 
 %% Parameter estimation using lsq 
 
-window_size = 8;
+window_size = 10;
 N = length(Ay);
-%step = 35;
 
-modelx = @(bx,t) cos(2*pi*bx(1)*t+bx(2)) + bx(3);
-modely = @(by,t) sin(2*pi*by(1)*t+by(2)) + by(3);
+model = @(b,t) sin(2*pi*b(1)*t+b(2)) + b(3);
+b0 = [0.1, 0.0, 0.0]; % initial guess
 
-b0x = [0.1, 0.0, 0]; % initial guess
-b0 = [0.1, 0.0, 0]; % initial guess
-
-
-lby = [0, 0, min(Ay)];
-uby = [20, 2*pi, max(Ay)];
-
-lbx = [0, 0, min(Ax)];
-ubx = [20, 2*pi, max(Ax)];
+lb = [-5.5, -pi, min(Ay)];
+ub = [5.5, pi, max(Ay)];
 
 opts = optimoptions('lsqcurvefit', ...
     'MaxFunctionEvaluations', 5000, ...
@@ -308,11 +309,11 @@ for i=window_size/2:4:N-window_size/2
     
     t_rel = t_win-t_win(1);
 
-    b_hatx = lsqcurvefit(modely,b0,t_rel,Ax_win, lbx, ubx, opts);
-    b_haty = lsqcurvefit(modely,b0,t_rel,Ay_win, lby, uby, opts);
+    b_hatx = lsqcurvefit(model, b0, t_rel, Ax_win, lb, ub, opts);
+    b_haty = lsqcurvefit(model, b0, t_rel, Ay_win, lb, ub, opts);
 
-    y_fit = modely(b_haty,t_rel);
-    x_fit = modely(b_hatx,t_rel);
+    y_fit = model(b_haty,t_rel);
+    x_fit = model(b_hatx,t_rel);
 
     time(k) = t_win(window_size/2);
     yvals(k) = y_fit(window_size/2);
@@ -327,13 +328,11 @@ end
 
 %%
 figure;
-%colors = lines(10); 
-%num_colors = size(colors, 1);
 
 plot(t,Ay/accelScale, 'Color','k')
 hold on
-    %c = colors(mod(i-1, num_colors) + 1, :);  
 plot(time,yvals/accelScale,'Color', 'r')
+
 if accelScale < 1
     ylabel('Acceleration [m/s²]')
 else
@@ -343,12 +342,9 @@ xlabel('Time [s]')
 title('Y-axis')
 
 figure;
-%colors = lines(10); 
-%num_colors = size(colors, 1);
 
 plot(t,Ax/accelScale, 'Color','k')
 hold on
-    %c = colors(mod(i-1, num_colors) + 1, :);  
 plot(time,xvals/accelScale,'Color', 'r')
 
 if accelScale < 1
@@ -361,19 +357,42 @@ title('X-axis')
 
 %% Distance calculation
 
-%xparam_matrix = cell2mat(xparams');
-%yparam_matrix = cell2mat(yparams');
-%freqs = param_matrix(:,2);
-%xphis = xparam_matrix(:,2);
-%yphis = yparam_matrix(:,2);
+xparam_matrix = cell2mat(xparams');
+yparam_matrix = cell2mat(yparams');
 
-phase = atan2(yvals,xvals);
-phase_unwr = unwrap(phase);
+xoffs = xparam_matrix(:,3);
+yoffs = yparam_matrix(:,3);
+
+xcorr = xvals - xoffs.';
+ycorr = yvals - yoffs.';
 
 figure;
-plot(phase_unwr)
+plot(time,xvals)
+hold on
+plot(time,xcorr)
+plot(time,yvals)
+
+figure;
+plot(xvals,yvals)
+hold on
+plot(xcorr,ycorr)
+%%
+
+arg_x = xparam_matrix(:,2);
+arg_y = yparam_matrix(:,2);
+
+phase_raw = atan2(yvals,xvals);
+phase_corr = atan2(ycorr,xcorr);
+phase_unwr = unwrap(phase_raw);
+
+figure;
+plot(time,phase_corr,'DisplayName','phase (offset removed)')
+hold on
+plot(time,phase_raw,'DisplayName','raw phase')
+plot(time,arg_x,'DisplayName','omega*t+phi')
 ylabel('Angle [rad]')
 xlabel('Time [s]')
 title('LSQ Angle Estimate')
+legend
 
 fprintf('LSQ distance estimate: %.2f\n', phase_unwr(end)*wheel_circ/(2*pi));
