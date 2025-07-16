@@ -7,7 +7,7 @@
 accelScale = 1/9.82; % scale accelerometer readings
 
 
-M = readmatrix("recordings/recording_20250701_03.csv");
+M = readmatrix("recordings/recording_20250701_02.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -89,7 +89,6 @@ Ndft = 1024;
 win = rectwin(wsize); % window function can be changed to something else
 [sx,fx,tx, Px] = spectrogram(Ax,win,ovlap,Ndft,fs);
 [sy,fy,ty, Py] = spectrogram(Ay,win,ovlap,Ndft,fs);
-
 
 % car speed
 v_car = fy*wheel_circ*3.6;
@@ -184,10 +183,6 @@ thetax_est = theta_dft+phix_offs;
 % DC offset estimate
 By_est = sy(1,:)/(sum(win));
 Bx_est = sx(1,:)/(sum(win));
-%Bx_est(f0_idx==1) = 0;
-%By_est(f0_idx==1) = 0;
-%Bx_est=0;
-%By_est=0;
 
 by = {thetay_est-pi/2, By_est};
 bx = {thetax_est, Bx_est};
@@ -195,8 +190,6 @@ bx = {thetax_est, Bx_est};
 % Want this to work
 %by = {1, thetay_est, By_est};
 %bx = {1, thetax_est, Bx_est};
-
-%b = {1, theta_est, B_est};
 
 yhat = model_dft(ty,by);
 xhat = model_dft(tx,bx);
@@ -240,7 +233,6 @@ linkaxes(ax,"x")
 %%
 
 % Then we could plot the unwrapped phase:
-%theta_dft = theta_dft;
 %theta_dft = unwrap(theta_dft)
 theta_dft_wrapped = wrapToPi(thetay_est - thetay_est(1));
 
@@ -250,8 +242,6 @@ theta_alt = wrapToPi(theta_alt - theta_alt(1));
 
 theta_raw= atan2(Ay,Ax);
 theta_raw = wrapToPi(theta_raw - theta_raw(1));
-
-%theta_raw = theta_raw;
 %theta_raw = unwrap(theta_raw-theta_raw(1));
 
 figure;
@@ -263,6 +253,7 @@ xlabel("Time [s]");
 ylabel("Angle [rad]");
 legend
 grid on
+
 
 %%
 
@@ -281,9 +272,6 @@ fprintf('STFT distance estimate: %.2f m\n', theta_dft(end)*wheel_circ/(2*pi));
 
 %% Parameter estimation using lsq 
 
-window_size = 10;
-N = length(Ay);
-
 model = @(b,t) sin(2*pi*b(1)*t+b(2)) + b(3);
 b0 = [0.1, 0.0, 0.0]; % initial guess
 
@@ -294,14 +282,23 @@ opts = optimoptions('lsqcurvefit', ...
     'MaxFunctionEvaluations', 5000, ...
      'Display', 'off'); % 'iter'
 
-time = [];
-xvals = [];
-yvals = [];
-xparams = {};
-yparams = {};
+window_size = 10;
+N = length(Ay);
+step = 6;
+
+% preallocation
+n = floor((N - window_size) / step) + 1;
+time = zeros(1,n);
+xvals = zeros(1,n);
+yvals = zeros(1,n);
+xparams = cell(1,n);
+yparams = cell(1,n);
+t_windows = zeros(n,window_size);
+x_fits = zeros(n,window_size);
+y_fits = zeros(n,window_size);
 
 k=1;
-for i=window_size/2:4:N-window_size/2
+for i=window_size/2:step:N-window_size/2
     j = i-window_size/2+1:(i+window_size/2);
     t_win = t(j);
     Ay_win = Ay(j);
@@ -321,12 +318,17 @@ for i=window_size/2:4:N-window_size/2
     xparams{k} = b_hatx;
     yparams{k} = b_haty;
 
+    t_windows(k,:) = t_win;
+    x_fits(k,:) = x_fit;
+    y_fits(k,:) = y_fit;
+
     %b0 = b_hat;
     k=k+1;
 end
 
 
-%%
+%% Plot full signals
+
 figure;
 
 plot(t,Ay/accelScale, 'Color','k')
@@ -367,10 +369,11 @@ xcorr = xvals - xoffs.';
 ycorr = yvals - yoffs.';
 
 figure;
-plot(time,xvals)
+plot(time,xvals,'DisplayName','xhat')
 hold on
-plot(time,xcorr)
-plot(time,yvals)
+plot(time,xcorr,'DisplayName','xhat_ nooffset')
+%plot(time,yvals)
+legend
 
 figure;
 plot(xvals,yvals)
@@ -381,9 +384,28 @@ plot(xcorr,ycorr)
 arg_x = xparam_matrix(:,2);
 arg_y = yparam_matrix(:,2);
 
-phase_raw = atan2(yvals,xvals);
+phase_raw = atan2(yvals,xvals); %
 phase_corr = atan2(ycorr,xcorr);
 phase_unwr = unwrap(phase_raw);
+
+
+%% Plot 3 frames
+
+for i =40:220
+    plot(t_windows(i,:),x_fits(i,:))
+    hold on
+    plot(t_windows(i,:),y_fits(i,:))
+   % plot(t_windows(i,window_size/2), x_fits(i,window_size/2),'o')
+   % plot(t_windows(i,window_size/2), y_fits(i,window_size/2),'o')
+end
+
+    plot(time(40:220),ycorr(40:220))
+    plot(time(40:220),xcorr(40:220))
+   % plot(time,xcorr)
+
+
+%%
+
 
 figure;
 plot(time,phase_corr,'DisplayName','phase (offset removed)')
@@ -396,3 +418,77 @@ title('LSQ Angle Estimate')
 legend
 
 fprintf('LSQ distance estimate: %.2f\n', phase_unwr(end)*wheel_circ/(2*pi));
+
+
+
+%% alt. method
+
+window_size = 10;
+N = length(Ay);
+step = 1;
+
+n = floor((N - window_size) / step) + 1;
+time = zeros(1,n);
+
+bx = cell(1,n);
+by = cell(1,n);
+w_best = [];
+%w = 1e-4; % start frequency
+k=1;
+for i=window_size/2:step:N-window_size/2
+    j = i-window_size/2+1:(i+window_size/2);
+    t_win = t(j);
+    Ay_win = Ay(j);
+    %Ax_win = Ax(j);
+    t_rel = t_win-t_win(1);
+
+        
+    freqs = linspace(0.5, 5, 20); % min,max,num
+    err = zeros(1, length(freqs));
+    best_beta = zeros(3,1);
+    best_w_idx = 1;
+
+    % try different frequencies
+    for idx = 1:length(freqs)
+        w = 2*pi*freqs(idx);
+        % Csin, Dcos +B
+        X = [sin(w*t_win), cos(w*t_win), ones(size(t_win))];
+        beta = X\Ay_win;
+        res = Ay_win- X*beta;
+        err(idx) = sum(res.^2);
+
+        if err(idx) < min(err(1:idx))
+            best_beta = beta_try;
+            best_w_idx = idx;
+        end
+        
+        %bx{k} = X\Ax_win;
+
+    end
+    w_best(k) = 2*pi*freqs(best_w_idx);
+    by{k} = best_beta;
+
+    k=k+1;
+end
+
+%%
+
+by_mat = cell2mat(by);
+Cy0 = by_mat(1,:).';
+Dy0 = by_mat(2,:).';
+By = by_mat(3,:).';
+
+scale_y = 1/sqrt(Cy0.^2+Dy0.^2);
+Cy = Cy0.*scale_y(:);
+Dy = Dy0.*scale_y(:);
+
+t_center = t(window_size/2:step:N-window_size/2);
+
+reconstructed = zeros(size(t_center));
+w_best = w_best(:);
+for i = 1:length(t_center)-1
+    tt = t_center(i);     % Center time of window
+    reconstructed(i) = Cy(i)*sin(w_best(i)*tt) + Dy(i)*cos(w_best(i)*tt) + By(i);
+end
+
+plot(t_center, reconstructed)
