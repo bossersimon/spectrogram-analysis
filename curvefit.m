@@ -230,6 +230,7 @@ legend
 
 linkaxes(ax,"x")
 
+
 %%
 
 % Then we could plot the unwrapped phase:
@@ -282,12 +283,15 @@ opts = optimoptions('lsqcurvefit', ...
     'MaxFunctionEvaluations', 5000, ...
      'Display', 'off'); % 'iter'
 
-window_size = 10;
+window_size = 6;
 N = length(Ay);
-step = 6;
+step = 1;
 
 % preallocation
 n = floor((N - window_size) / step) + 1;
+% time = zeros(3,n);
+% xvals = zeros(3,n);
+% yvals = zeros(3,n);
 time = zeros(1,n);
 xvals = zeros(1,n);
 yvals = zeros(1,n);
@@ -303,8 +307,9 @@ for i=window_size/2:step:N-window_size/2
     t_win = t(j);
     Ay_win = Ay(j);
     Ax_win = Ax(j);
-    
-    t_rel = t_win-t_win(1);
+
+    center_idx = window_size/2;
+    t_rel = t_win-t_win(center_idx);
 
     b_hatx = lsqcurvefit(model, b0, t_rel, Ax_win, lb, ub, opts);
     b_haty = lsqcurvefit(model, b0, t_rel, Ay_win, lb, ub, opts);
@@ -312,9 +317,15 @@ for i=window_size/2:step:N-window_size/2
     y_fit = model(b_haty,t_rel);
     x_fit = model(b_hatx,t_rel);
 
-    time(k) = t_win(window_size/2);
-    yvals(k) = y_fit(window_size/2);
-    xvals(k) = x_fit(window_size/2);
+    idx = center_idx; %+ (-1:1);
+
+    % time(:,k) = t_win(idx);
+    % yvals(:,k) = y_fit(idx);
+    % xvals(:,k) = x_fit(idx);
+
+    time(k) = t_win(idx);
+    yvals(k) = y_fit(idx);
+    xvals(k) = x_fit(idx);
     xparams{k} = b_hatx;
     yparams{k} = b_haty;
 
@@ -325,6 +336,15 @@ for i=window_size/2:step:N-window_size/2
     %b0 = b_hat;
     k=k+1;
 end
+
+% time_flat = reshape(time.', [], 1);
+% yvals_flat = reshape(yvals.', [], 1);
+% xvals_flat = reshape(xvals.', [], 1);
+% 
+% [time_sorted, idx] = sort(time_flat);
+% yvals_sorted = yvals_flat(idx);
+% xvals_sorted = xvals_flat(idx);
+
 
 
 %% Plot full signals
@@ -411,7 +431,7 @@ figure;
 plot(time,phase_corr,'DisplayName','phase (offset removed)')
 hold on
 plot(time,phase_raw,'DisplayName','raw phase')
-plot(time,arg_x,'DisplayName','omega*t+phi')
+%plot(time,arg_x,'DisplayName','omega*t+phi')
 ylabel('Angle [rad]')
 xlabel('Time [s]')
 title('LSQ Angle Estimate')

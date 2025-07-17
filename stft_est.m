@@ -63,7 +63,7 @@ linkaxes(ax,"x")
 fs = 100;
 wsize = 100;
 ovlap = wsize-1;
-Ndft = 1024;
+Ndft = 4096;
 
 win = hann(wsize); % window function can be changed to something else
 [sx,fx,tx, Px] = spectrogram(Ax,win,ovlap,Ndft,fs);
@@ -129,15 +129,15 @@ end
 
 %%
 
-f0_idx = nan(1,size(sy,2));
-for t = 1:size(sy,2)
-    if motion_detected(t)
-        [~,relative_idx] = max(abs(sy(th_idx:end,(t))));
-        f0_idx(t) = relative_idx + th_idx - 1; 
-    else
-        f0_idx(t) = 1;
-    end
-end
+% f0_idx = nan(1,size(sy,2));
+% for t = 1:size(sy,2)
+%     if motion_detected(t)
+%         [~,relative_idx] = max(abs(sy(th_idx:end,(t))));
+%         f0_idx(t) = relative_idx + th_idx - 1; 
+%     else
+%         f0_idx(t) = 1;
+%     end
+% end
 %%
 
 
