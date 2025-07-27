@@ -6,7 +6,7 @@ clear
 
 accelScale = 1/9.82;
 
-M = readmatrix("recordings/recording_20250701_04.csv");
+M = readmatrix("recordings/recording_20250701_02.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -67,8 +67,8 @@ wsize = 130;
 ovlap = wsize-1;
 Ndft = 1024;
 
-%win = hann(wsize); % window function can be changed to something else
-win = rectwin(wsize);
+win = hann(wsize); % window function can be changed to something else
+%win = rectwin(wsize);
 [sx,fx,tx, Px] = spectrogram(Ax,win,ovlap,Ndft,fs);
 [sy,fy,ty, Py] = spectrogram(Ay,win,ovlap,Ndft,fs);
 
@@ -210,59 +210,60 @@ model_dft = @(t,b) cos(b{1}) + b{2};
 dt = 1/100;
 N = size(M,1);   
 
-% 1 Hz = 1.82 m/s = 6.55 km/h
-%th = 1.5;   % threshold frequency in Hz
-%th_idx = round(th/(fs/Ndft)) +1;   % index of roughly this frequency
-%threshold = (th_idx-1)*fs/Ndft;    % actual threshold with this index
-
-%[~,f0y_relative_idx] = max(abs(sy(th_idx:end,:)));  % returns relative index of masked array
-%f0_idx = f0y_relative_idx + th_idx - 1;            % corresponding index in full array
-
-%DC_amplitude = abs(sy(1,:));
-%target_amplitude = max(abs(sy(th_idx:end,:)),[],1);
-%motion_detected = target_amplitude > 21.5; % This value determines when we start looking only above the threshold.
-
 % NEW threshold logic
 gyro_vals = -Gz(wsize/2:end-wsize/2)/360; % DPS/360 [1/s]
 freq_res = fs/Ndft;
 
-f_th = 1.7; % Roughly 6 km/h
+f_th = 1; % Roughly 6 km/h
 th_idx = round(f_th / freq_res) + 1;
 
 f0_idx = nan(1,size(sy,2));
+
 %%
+
+curr_max_idx = 1;
+
+%Py_bp = zeros(size(sy));
+bp_width = 0.5; % in Hz
+max_jump = 3;
 for t = 1:size(sy,2)
-    if gyro_vals(t)<f_th
+    if gyro_vals(t)<f_th 
         % use gyro derived freq
         idx = round(gyro_vals(t) / freq_res) + 1;
         idx = max(1, min(idx, Ndft));
-        f0_idx(t) = idx;
+
+        if abs(idx - curr_max_idx) <= max_jump
+            f0_idx(t) = idx;
+            curr_max_idx = idx;
+        else
+            f0_idx(t) = curr_max_idx;  % ignore jump
+        end
     else
-        % use STFT peak
-        [~,rel_idx] = max(abs(sy(th_idx:end,t)));
-        idx = rel_idx + th_idx - 1;
-        f0_idx(t) = idx;
+        % obtain bp range from prev. window
+        lo_f = max(0, fy(curr_max_idx) - bp_width);
+        hi_f = fy(curr_max_idx) + bp_width;
+    
+        f_pass = fy >= lo_f & fy <= hi_f;
+        sy_bp = zeros(size(sy(:,t)));
+        sy_bp(f_pass) = sy(f_pass, t);
+        
+        %Py_bp(:, t) = abs(sy_bp).^2 / (norm(win)^2);
+    
+        [~,max_idx] = max(abs(sy_bp));
+        f0_idx(t) = max_idx; % store
+        curr_max_idx = max_idx; % update
     end
 end
 
+
 %%
 
-%dc_magnitude = abs(sy(1,:));
-%dc_zero_idx = find(dc_magnitude<1, 1 , 'first'); % index in time where dc is 0
+f0_idx_dyn = zeros(1,size(sy,2));
 
-% Up until dc_zero_idx
-%f0_idx_dyn = zeros(1,size(sy,2));
-%[~, f0_idx_dyn(1:dc_zero_idx)] = max(abs(sy(:, 1:dc_zero_idx)), [], 1);
-
-
-% [~, temp_idx] = max(abs(sy(15:end, dc_zero_idx+1:end)), [], 1);
-% f0_idx_dyn(dc_zero_idx+1:end) = temp_idx + 14;
-
-% Then bandpass
 Py_bp = zeros(size(sy));
 bp_width = 0.5; % in Hz
-curr_max_idx = f0_idx_dyn(dc_zero_idx); % current maximum frequency peak index
-for t_idx = dc_zero_idx+1:size(sy,2)
+curr_max_idx = 1; % current maximum frequency peak index
+for t_idx = 1:size(sy,2)
         
     % obtain bp range from prev. window
     lo_f = max(0, fy(curr_max_idx) - bp_width);
@@ -280,7 +281,7 @@ for t_idx = dc_zero_idx+1:size(sy,2)
 end
 
 %%
-
+dc_magnitude = abs(sy(1,:));
 figure;
 plot(ty,dc_magnitude);
 hold on
@@ -294,14 +295,14 @@ plot(ty, f0_idx_dyn, 'DisplayName','f0_idx_dyn')
 legend
 %%
 
-f_peak = fy(f0_idx_dyn);        % Hz
+f_peak = fy(f0_idx);        % Hz
 v_peak = f_peak * wheel_circ * 3.6;
 
 v_lo = max(v_peak - bp_width*wheel_circ*3.6, 0);
 v_hi = v_peak + bp_width*wheel_circ*3.6;
 
 figure;
-imagesc(ty, v_car, 10*log10(Py_bp));
+imagesc(ty, v_car, 10*log10(Py));
 axis xy;
 xlabel('Time (s)');
 ylabel('Speed (km/h)');
@@ -316,22 +317,11 @@ legend('Lower Band Edge', 'Upper Band Edge', 'Tracked Speed');
 
 
 %%
-
-% f0_idx = nan(1,size(sy,2));
-% for t = 1:size(sy,2)
-%     if motion_detected(t)
-%         [~,relative_idx] = max(abs(sy(th_idx:end,(t))));
-%         f0_idx(t) = relative_idx + th_idx - 1; 
-%     else
-%         f0_idx(t) = 1;
-%     end
-% end
-%%
-f_vals = fy(f0_idx_dyn);
+f_vals = fy(f0_idx);
 
 cols = 1:size(sy,2);   % cols for sub2ind
-Sx = sx(sub2ind(size(sx), f0_idx_dyn, cols));  % values of S at wanted frequencies
-Sy = sy(sub2ind(size(sy), f0_idx_dyn, cols));
+Sx = sx(sub2ind(size(sx), f0_idx, cols));  % values of S at wanted frequencies
+Sy = sy(sub2ind(size(sy), f0_idx, cols));
 
 % phase offset estimate (phi_0)
 S = Sx + 1j*Sy;
@@ -347,23 +337,11 @@ thetay_est = theta_dft+phiy_offs;
 phix_offs = transpose(2*pi*f_vals*wsize/(2*fs));
 thetax_est = theta_dft+phix_offs;
 
-% DC offset estimate
-% By_est = sy(1,:)/(sum(win));
-% Bx_est = sx(1,:)/(sum(win));
-% dc_frames = (gyro_vals<f_th);
-% alphax = -0.01;
-% alphay = 0.005;
-% By_est(dc_frames) = 2*pi*alphay*gyro_vals(dc_frames).^2;
-% Bx_est(dc_frames) = 2*pi*alphax*gyro_vals(dc_frames).^2;
-
 by = {thetay_est-pi/2, 0};
 bx = {thetax_est, 0};
 
 yhat = model_dft(ty,by);
 xhat = model_dft(tx,bx);
-
-%yhat_corrected = yhat-By_est;
-%xhat_corrected = xhat-Bx_est;
 
 figure('Name','Raw + reconstructed');
 dt = 1/100;
