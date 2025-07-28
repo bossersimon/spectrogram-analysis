@@ -87,6 +87,7 @@ ovlap = wsize-1;
 Ndft = 1024;
 
 win = rectwin(wsize); % window function can be changed to something else
+%win = hann(wsize);
 [sx,fx,tx, Px] = spectrogram(Ax,win,ovlap,Ndft,fs);
 [sy,fy,ty, Py] = spectrogram(Ay,win,ovlap,Ndft,fs);
 
@@ -108,7 +109,6 @@ gyro_vals = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6
 p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
 legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest');
 
-
 %% Parameter estimation using DFT 
 
 % b(0) = A
@@ -127,75 +127,109 @@ N = size(M,1);
 
 % 1 Hz = 1.82 m/s = 6.55 km/h
 % frequency and amplitude estimates
-th = 1;   % threshold frequency in Hz
-th_idx = round(th/(fs/Ndft)) +1;   % index of roughly this frequency
-threshold = (th_idx-1)*fs/Ndft;    % actual threshold with this index
 
-[~,f0y_relative_idx] = max(abs(sy(th_idx:end,:)));  % returns relative index of masked array
-%[~,f0x_relative_idx] = max(abs(sx(th_idx:end,:)));  % returns relative index of masked array
+%th = 1;   % threshold frequency in Hz
+%th_idx = round(th/(fs/Ndft)) +1;   % index of roughly this frequency
+%threshold = (th_idx-1)*fs/Ndft;    % actual threshold with this index
 
-f0_idx = f0y_relative_idx + th_idx - 1;            % corresponding index in full array
-%f0x_idx = f0x_relative_idx + th_idx - 1;            % corresponding index in full array
-%f0_idx = round((f0y_idx+f0x_idx)/2);
+%[~,f0y_relative_idx] = max(abs(sy(th_idx:end,:)));  % returns relative index of masked array
 
-DC_amplitude = abs(sy(1,:));
-target_amplitude = max(abs(sy(th_idx:end,:)),[],1);
+%f0_idx = f0y_relative_idx + th_idx - 1;            % corresponding index in full array
+
+
+%DC_amplitude = abs(sy(1,:));
+%target_amplitude = max(abs(sy(th_idx:end,:)),[],1);
 %ratio = target_amplitude ./ DC_amplitude;
 
+%motion_detected = target_amplitude > 25; % This value determines when we start looking only above the threshold. 
 
-motion_detected = target_amplitude > 25; % This value determines when we start looking only above the threshold. 
+% f0_idx = nan(1,size(sy,2));
+%  
+% for t = 1:size(sy,2)
+%     if motion_detected(t)
+%         [~,relative_idx] = max(abs(sy(th_idx:end,(t))));
+%         f0_idx(t) = relative_idx + th_idx - 1; 
+%     else
+%         f0_idx(t) = 1;
+%     end
+% end
 
-f0_idx = nan(1,size(sy,2));
 
-for t = 1:size(sy,2)
-    if motion_detected(t)
-        [~,relative_idx] = max(abs(sy(th_idx:end,(t))));
-        f0_idx(t) = relative_idx + th_idx - 1; 
-    else
-        f0_idx(t) = 1;
-    end
-end
-
-f_vals = fy(f0_idx);
+[~,f0_idx]= max(abs(sy),[],1);
+fy_vals = fy(f0_idx);
+fx_vals = fx(f0_idx);
 
 % Prints speed estimate (not really needed)
-f_avg = mean(fx(f0_idx(1600:5500)))
-v_avg = f_avg*wheel_circ
+f_avg = mean(fx(f0_idx(1600:5500)));
+v_avg = f_avg*wheel_circ;
 
 cols = 1:size(sy,2);   % cols for sub2ind
 Sx = sx(sub2ind(size(sx), f0_idx, cols));  % values of S at wanted frequencies
 Sy = sy(sub2ind(size(sy), f0_idx, cols));
 
+dc_magnitude = abs(sy(1,:));
+dc_zero_idx = find(dc_magnitude<0.5, 1 , 'first');
+
+f0_idx_dyn = zeros(1,size(sy,2));
+[~, f0_idx_dyn(1:dc_zero_idx)] = max(abs(sy(:, 1:dc_zero_idx)), [], 1);
+
+%sy2 = sy;
+%sy2(1:3, :) = 0;
+[~, temp_idx] = max(abs(sy(20:end, dc_zero_idx+1:end)), [], 1);
+f0_idx_dyn(dc_zero_idx+1:end) = temp_idx + 19;
+
+Sy2 = sy(sub2ind(size(sy), f0_idx_dyn, cols));
+Sx2 = sx(sub2ind(size(sx), f0_idx_dyn, cols));
+
+
+%%
+plot(ty,abs(sy(1,:)),'DisplayName','DC')
+hold on
+
+plot(ty,abs(sy(2,:)),'DisplayName','DC+1')
+plot(ty,abs(sy(3,:)),'DisplayName','DC+2')
+plot(ty,abs(sy(5,:)),'DisplayName','DC+4')
+plot(ty,abs(sy(8,:)),'DisplayName','DC+7')
+%plot(ty,abs(sy(11,:)),'DisplayName','DC+10')
+
+
+plot(ty,abs(Sy), 'DisplayName','Peak')
+plot(ty,abs(Sy2), 'DisplayName','Non-DC peak')
+legend
+%%
+
 % phase offset estimate (phi_0)
-S = Sx + 1j*Sy;
+S = Sx2 + 1j*Sy2;
 
 tol = 1e-6;    % remove tiny noise
 S(abs(S) < tol) = 0;
 
 %theta_raw = unwrap(angle(S));
 theta_dft = angle(S);
-phiy_offs = transpose(2*pi*f_vals*wsize/(2*fs));
-thetay_est = theta_dft+phiy_offs;
+phiy_offs = transpose(2*pi*fy_vals*wsize/(2*fs));
+phix_offs = transpose(2*pi*fx_vals*wsize/(2*fs));
 
-phix_offs = transpose(2*pi*f_vals*wsize/(2*fs));
-thetax_est = theta_dft+phix_offs;
+thetay_est = theta_dft +phiy_offs;
+thetax_est = theta_dft +phix_offs;
 
 % DC offset estimate
-By_est = sy(1,:)/(sum(win));
-Bx_est = sx(1,:)/(sum(win));
+%By_est = sy(1,:)/(sum(win));
+%Bx_est = sx(1,:)/(sum(win));
+
+%Bx_est(f0_idx==1) = 0;
+%By_est(f0_idx==1) = 0;
+
+Bx_est = 0;
+By_est = 0;
 
 by = {thetay_est-pi/2, By_est};
 bx = {thetax_est, Bx_est};
 
-% Want this to work
-%by = {1, thetay_est, By_est};
-%bx = {1, thetax_est, Bx_est};
-
 yhat = model_dft(ty,by);
 xhat = model_dft(tx,bx);
 
-yhat_corrected = yhat-By_est;
-xhat_corrected = xhat-Bx_est;
+yhat_corrected = yhat;%-By_est;
+xhat_corrected = xhat;%-Bx_est;
 
 figure('Name','Raw + reconstructed');
 dt = 1/100;
@@ -203,34 +237,36 @@ N = size(M,1);
 t = (0:N-1)*dt;
 t= transpose(t);
 tl = tiledlayout(2,1,"TileIndexing","columnmajor");
-xlabel(tl,'Time [s]');
+
+xlabel(tl,'Time [s]','FontSize',11);
 
 if accelScale < 1
-    ylabel(tl,"Acceleration [m/s²]");
+    ylabel(tl,"Acceleration [m/s²]", 'FontSize', 11);
 else
-    ylabel(tl,"Acceleration [g]");
+    ylabel(tl,"Acceleration [g]", 'FontSize', 11);
 end
 
 ax = [];
 ax(end+1) =nexttile;
-plot(t, M_filt(:,1)/accelScale,'DisplayName','raw x')
+plot(t, M_filt(:,1)/accelScale,'DisplayName','Raw','LineWidth',1.5)
 hold on
-plot(tx,xhat/accelScale,'DisplayName','xhat')
-title('x-axis')
+plot(tx,xhat/accelScale,'DisplayName','Model','LineWidth',1.5)
+title('x-axis','FontSize', 12)
 grid on
-legend
+legend('FontSize', 9);
 
 ax(end+i)=nexttile;
-plot(t, M_filt(:,2)/accelScale,'DisplayName','raw y')
+plot(t, M_filt(:,2)/accelScale,'DisplayName','Raw','LineWidth',1.5)
 hold on
-plot(ty,yhat/accelScale,'DisplayName','yhat')
-title('y-axis')
+plot(ty,yhat/accelScale,'DisplayName','Model','LineWidth',1.5)
+title('y-axis','FontSize', 12)
 grid on
-legend
+legend('FontSize', 9);
 
 linkaxes(ax,"x")
+%%
 
-
+exportgraphics(gcf, 'offsetjump.pdf', 'ContentType', 'vector');
 %%
 
 % Then we could plot the unwrapped phase:
@@ -452,7 +488,8 @@ time = zeros(1,n);
 
 bx = cell(1,n);
 by = cell(1,n);
-w_best = [];
+w_best = zeros(1,n);
+min_err = inf;
 %w = 1e-4; % start frequency
 k=1;
 for i=window_size/2:step:N-window_size/2
@@ -462,7 +499,6 @@ for i=window_size/2:step:N-window_size/2
     %Ax_win = Ax(j);
     t_rel = t_win-t_win(1);
 
-        
     freqs = linspace(0.5, 5, 20); % min,max,num
     err = zeros(1, length(freqs));
     best_beta = zeros(3,1);
@@ -472,13 +508,14 @@ for i=window_size/2:step:N-window_size/2
     for idx = 1:length(freqs)
         w = 2*pi*freqs(idx);
         % Csin, Dcos +B
-        X = [sin(w*t_win), cos(w*t_win), ones(size(t_win))];
+        X = [sin(w*t_rel), cos(w*t_rel), ones(size(t_rel))];
         beta = X\Ay_win;
         res = Ay_win- X*beta;
         err(idx) = sum(res.^2);
 
-        if err(idx) < min(err(1:idx))
-            best_beta = beta_try;
+        if err(idx) < min_err
+            min_err = err;
+            best_beta = beta;
             best_w_idx = idx;
         end
         

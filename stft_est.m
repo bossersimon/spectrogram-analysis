@@ -6,7 +6,7 @@ clear
 
 accelScale = 1/9.82;
 
-M = readmatrix("recordings/recording_20250701_02.csv");
+M = readmatrix("recordings/recording_20250701_04.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -72,9 +72,11 @@ win = hann(wsize); % window function can be changed to something else
 [sx,fx,tx, Px] = spectrogram(Ax,win,ovlap,Ndft,fs);
 [sy,fy,ty, Py] = spectrogram(Ay,win,ovlap,Ndft,fs);
 
-%%
 wheel_circ = 1.82;
 v_car = fy*wheel_circ*3.6;
+
+%%
+
 
 figure;
 imagesc(ty, v_car, 10*log10(Py));
@@ -224,7 +226,7 @@ f0_idx = nan(1,size(sy,2));
 curr_max_idx = 1;
 
 %Py_bp = zeros(size(sy));
-bp_width = 0.5; % in Hz
+bp_width = 0.3; % in Hz
 max_jump = 3;
 for t = 1:size(sy,2)
     if gyro_vals(t)<f_th 
@@ -261,7 +263,7 @@ end
 f0_idx_dyn = zeros(1,size(sy,2));
 
 Py_bp = zeros(size(sy));
-bp_width = 0.5; % in Hz
+bp_width = 0.3; % in Hz
 curr_max_idx = 1; % current maximum frequency peak index
 for t_idx = 1:size(sy,2)
         

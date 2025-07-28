@@ -1,10 +1,10 @@
 
 %% latest estimation method
 
-
+clear all
 accelScale = 1;%/9.82;
 
-M = readmatrix("recordings/recording_20250701_02.csv");
+M = readmatrix("recordings/recording_20250701_06.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -25,22 +25,22 @@ Ay = M_filt(:,2);
 figure("Name","raw+filtered")
 dt = 1/100;
 N = size(M,1);
-l = (0:N-1)*dt;
-l= transpose(l);
+t = (0:N-1)*dt;
+t= transpose(t);
 tiledlayout(3,2,"TileIndexing","columnmajor")
 ax = [];
 for i = 1:6
     ax(end+1) =nexttile;
     if i<4
-        plot(l, M(:,i)/accelScale)
+        plot(t, M(:,i)/accelScale)
         hold on
-        plot(l,M_filt(:,i)/accelScale)
+        plot(t,M_filt(:,i)/accelScale)
     else
-        plot(l, M(:,i))
+        plot(t, M(:,i))
     end
 
     if i == 6
-        plot(l,Gz_corrected)
+        plot(t,Gz)
     end
     grid on
 
@@ -71,6 +71,10 @@ win = hann(wsize); % window function can be changed to something else
 
 
 %%
+
+wheel_circ = 1.82;
+v_car = fy*wheel_circ*3.6;
+
 figure;
 imagesc(ty, v_car, 10*log10(Py));
 axis xy;
@@ -149,10 +153,11 @@ figure; hold on;
 for i = 1:num_segments
     k1 = intervals(i);
     k2 = intervals(i+1);
-    plot(real(Fk(k1:k2)), imag(Fk(k1:k2)), 'o','Color', cmap(i,:), 'LineWidth', 2);
+    plot(real(Fk(k1:k2)), imag(Fk(k1:k2)), '-','Color', cmap(i,:), 'LineWidth', 0.5);
 end
 
 axis equal;
 xlabel('Real');
 ylabel('Imag');
 colormap(cmap);
+grid on
