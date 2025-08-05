@@ -1,12 +1,11 @@
 
-
 %%  STFT estimation
 
 clear
 
 accelScale = 1/9.82;
 
-M = readmatrix("recordings/recording_20250701_04.csv");
+M = readmatrix("recordings/recording_20250701_06.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -73,12 +72,13 @@ win = hann(wsize); % window function can be changed to something else
 [sy,fy,ty, Py] = spectrogram(Ay,win,ovlap,Ndft,fs);
 
 wheel_circ = 1.82;
-v_car = fy*wheel_circ*3.6;
+v_car = fy*wheel_circ*3.6; % speed in km/h
 
 %%
 
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
 
-figure;
 imagesc(ty, v_car, 10*log10(Py));
 axis xy;
 xlabel("Time [s]");
@@ -91,7 +91,7 @@ c.Label.String = 'Power/frequency [dB/Hz]';
 hold on;
 gyro_vals = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6 [km/h]
 p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
-legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest');
+legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest','FontSize', 18);
 
 
 %% Report plots
@@ -202,12 +202,10 @@ subplot(1,2,2); legend;
 %%
 %print(fig, 'my_figure.pdf', '-dpdf', '-fillpage');
 fig = gcf;
-exportgraphics(fig, 'FFTFrames_01.pdf', 'ContentType', 'vector');
+exportgraphics(fig, 'STFT02.pdf', 'ContentType', 'vector');
 
 
 %% Parameter estimation using STFT 
-
-model_dft = @(t,b) cos(b{1}) + b{2};
 
 dt = 1/100;
 N = size(M,1);   
@@ -303,23 +301,41 @@ v_peak = f_peak * wheel_circ * 3.6;
 v_lo = max(v_peak - bp_width*wheel_circ*3.6, 0);
 v_hi = v_peak + bp_width*wheel_circ*3.6;
 
-figure;
+f_peak2 = fy(f0_idx_dyn);        % Hz
+v_peak2 = f_peak2 * wheel_circ * 3.6;
+
+v_lo2 = max(v_peak2 - bp_width*wheel_circ*3.6, 0);
+v_hi2 = v_peak2 + bp_width*wheel_circ*3.6;
+
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
+
 imagesc(ty, v_car, 10*log10(Py));
 axis xy;
 xlabel('Time (s)');
 ylabel('Speed (km/h)');
 title('Spectrogram');
+colormap(bone);
 colorbar;
 
+colors = {'k', [0.3 0.3 0.3], [0.6 0.6 0.6], [0.9 0.9 0.9]};
+styles = {'-', '--', '-.', ':'};
+
 hold on;
-plot(ty, v_lo, 'w--', 'LineWidth', 1.5);  % Lower band edge
-plot(ty, v_hi, 'w--', 'LineWidth', 1.5);  % Upper band edge
+plot(ty, v_lo, 'Color', colors{1},'LineStyle', styles{1}, 'LineWidth', 1.5);  % Lower band edge
+plot(ty, v_hi, 'b--', 'LineWidth', 1.5);  % Upper band edge
 plot(ty, v_peak, 'r-', 'LineWidth', 2);   % Tracked speed
-legend('Lower Band Edge', 'Upper Band Edge', 'Tracked Speed');
+
+plot(ty, v_lo2, 'w--', 'LineWidth', 1.5);  % Lower band edge
+plot(ty, v_hi2, 'w--', 'LineWidth', 1.5);  % Upper band edge
+plot(ty, v_peak2, 'r-', 'LineWidth', 2);   % Tracked speed
+legend('Lower Band Edge', 'Upper Band Edge', 'Tracked Speed','FontSize',18);
 
 
 %%
 f_vals = fy(f0_idx);
+
+model_dft = @(t,b) cos(b{1}) + b{2};
 
 cols = 1:size(sy,2);   % cols for sub2ind
 Sx = sx(sub2ind(size(sx), f0_idx, cols));  % values of S at wanted frequencies
@@ -333,11 +349,10 @@ S(abs(S) < tol) = 0;
 
 %theta_dft = unwrap(angle(S));
 theta_dft = angle(S);
-phiy_offs = transpose(2*pi*f_vals*wsize/(2*fs));
-thetay_est = theta_dft+phiy_offs;
 
-phix_offs = transpose(2*pi*f_vals*wsize/(2*fs));
-thetax_est = theta_dft+phix_offs;
+phi_offs = transpose(2*pi*f_vals*wsize/(2*fs));
+thetay_est = theta_dft+phi_offs;
+thetax_est = theta_dft+phi_offs;
 
 by = {thetay_est-pi/2, 0};
 bx = {thetax_est, 0};
@@ -345,59 +360,298 @@ bx = {thetax_est, 0};
 yhat = model_dft(ty,by);
 xhat = model_dft(tx,bx);
 
+theta2 = atan2(yhat,xhat);
+
+ax = [];
+
 figure('Name','Raw + reconstructed');
 dt = 1/100;
 N = size(M,1);
 t = (0:N-1)*dt;
 t= transpose(t);
 tl = tiledlayout(2,1,"TileIndexing","columnmajor");
-xlabel(tl,'Time [s]');
+xlabel(tl,'Time [s]','FontSize', 20, 'Interpreter', 'latex');
 
 if accelScale < 1
-    ylabel(tl,"Acceleration [m/s²]");
+    ylabel(tl,"Acceleration [m/s$^2$]", 'Interpreter','latex', 'FontSize', 18);
 else
-    ylabel(tl,"Acceleration [g]");
+    ylabel(tl,"Acceleration [g]", 'Interpreter','latex', 'FontSize', 18);
 end
+
+%ax = [];
+ax(end+1) =nexttile;
+plot(t, Ax/accelScale,'DisplayName','raw x','LineWidth',1.5)
+hold on
+plot(tx,xhat/accelScale,'DisplayName','xhat','LineWidth',1.5)
+
+title('x-axis','FontSize', 20, 'Interpreter', 'latex')
+grid on
+legend('FontSize', 16)
+
+ax(end+i)=nexttile;
+plot(t, Ay/accelScale,'DisplayName','raw y','LineWidth',1.5)
+hold on
+plot(ty,yhat/accelScale,'DisplayName','yhat','LineWidth',1.5)
+
+title('y-axis','FontSize', 20, 'Interpreter', 'latex')
+grid on
+legend('FontSize', 16)
+
+linkaxes(ax,"x")
+
+%%
+
+dphi = diff(thetax_est);
+
+plot(ty(1:end-1), dphi)
+
+
+%%
+fig = gcf;
+exportgraphics(fig, 'raw+recon_02.pdf', 'ContentType', 'vector');
+
+%%
+
+
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
+
+dt = 1/100;
+N = size(M,1);
+t = (0:N-1)*dt;
+t= transpose(t);
+tl = tiledlayout(2,1,"TileIndexing","columnmajor");
+xlabel(tl,'Time [s]','Interpreter','latex', 'FontSize', 20);
 
 ax = [];
 ax(end+1) =nexttile;
-plot(t, M_filt(:,1)/accelScale,'DisplayName','raw x')
-hold on
-plot(tx,xhat/accelScale,'DisplayName','xhat')
+plot(ty,yhat/accelScale,'DisplayName','yhat', 'LineWidth',1.5)
 
-p = 20;
-for i = 1:p:length(ty)
-    text(tx(i), xhat(i), ...
-         sprintf('%.2f', f_vals(i)), ...
-         'FontSize', 6, ...
-         'Color', 'blue', ...
-         'VerticalAlignment', 'bottom', ...
-         'HorizontalAlignment', 'center');
+hold on
+plot(tx,xhat/accelScale,'DisplayName','xhat','LineWidth',1.5)
+
+if accelScale < 1
+    ylabel("Acceleration [m/s$^2$]", 'Interpreter','latex', 'FontSize', 18);
+else
+    ylabel("Acceleration [g]", 'Interpreter','latex', 'FontSize', 18);
 end
 
-title('x-axis')
+title('Time signals', 'FontSize', 20, 'Interpreter', 'latex');
 grid on
 legend
 
 ax(end+i)=nexttile;
-plot(t, M_filt(:,2)/accelScale,'DisplayName','raw y')
-hold on
-plot(ty,yhat/accelScale,'DisplayName','yhat')
+tht = wrapToPi(thetax_est);
 
-for i = 1:p:length(ty)
-    text(ty(i), yhat(i), ...
-         sprintf('%.2f', f_vals(i)), ...
-         'FontSize', 6, ...
-         'Color', 'blue', ...
-         'VerticalAlignment', 'bottom', ...
-         'HorizontalAlignment', 'center');
-end
-title('y-axis')
+plot(ty, tht,'DisplayName','phase','LineWidth',1.5,'Color','b')
+hold on
+ylabel("Phase [rad]", 'FontSize', 18, 'Interpreter','latex');
+title('Phase', 'FontSize', 20, 'Interpreter', 'latex');
 grid on
-legend
 
 linkaxes(ax,"x")
+%%
+plot(ty,tht)
+
+
+%% export
+
+fig = gcf;
+exportgraphics(fig, 'phasedist_02.pdf', 'ContentType', 'vector');
+
 
 %% 
 figure;
 plot(xhat, yhat)
+
+
+%%
+
+fc = 1; 
+fs = 100;
+n = 100; % filter order
+b = fir1(n, (fc/(fs/2)), 'high');
+
+
+Ax_filtered = filtfilt(b,1,Ax(wsize/2:end-wsize/2));
+Ay_filtered = filtfilt(b,1,Ay(wsize/2:end-wsize/2));
+xhat_filtered = filtfilt(b,1,xhat);
+
+figure;
+plot(ty,Ax_filtered)
+hold on
+plot(ty,xhat_filtered)
+
+
+mse = sum((Ax_filtered(:)-xhat(:)).^2)/(size(xhat,2));
+%%
+theta_raw  = atan2(Ay_filtered,Ax_filtered);
+theta_raw2 = atan2(Ay,Ax);
+
+
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
+
+%plot(ty,theta_raw, 'DisplayName','raw no offs')
+hold on
+%plot(ty,tht, 'DisplayName','est')
+plot(t,theta_raw2, 'DisplayName','raw','Color','b', 'LineWidth',1.5)
+title("raw phase")
+xlabel('Time [s]')
+ylabel('Angle [rad]')
+%legend
+
+%% new figure
+
+
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
+
+dt = 1/100;
+N = size(M,1);
+t = (0:N-1)*dt;
+t= transpose(t);
+tl = tiledlayout(2,2,"TileIndexing","rowmajor");
+xlabel(tl,'Time [s]','FontSize', 20, 'Interpreter', 'latex');
+
+if accelScale < 1
+    ylabel(tl,"Acceleration [m/s$^2$]", 'Interpreter','latex', 'FontSize', 18);
+else
+    ylabel(tl,"Acceleration [g]", 'Interpreter','latex', 'FontSize', 18);
+end
+
+ax = [];
+ax(end+1) =nexttile(1);
+plot(t, Ax/accelScale,'DisplayName','raw x','LineWidth',1.5)
+hold on
+plot(tx,xhat/accelScale,'DisplayName','xhat', 'LineWidth',1.5)
+
+title('x-axis','FontSize', 20, 'Interpreter', 'latex')
+grid on
+legend('FontSize', 16)
+
+ax(end+1)=nexttile(3);
+plot(t, Ay/accelScale,'DisplayName','raw y','LineWidth',1.5)
+hold on
+plot(ty,yhat/accelScale,'DisplayName','yhat','LineWidth',1.5)
+
+title('y-axis','FontSize', 20, 'Interpreter', 'latex')
+grid on
+legend('FontSize', 16)
+
+
+ax(end+1) = nexttile(2, [2 1]);
+plot(ty, tht, 'DisplayName','phi_{est}')
+hold on
+plot(t,theta_raw2, 'DisplayName', 'raw phase','LineWidth',1.5)
+
+title('phase','FontSize', 20, 'Interpreter', 'latex','LineWidth',1.5)
+grid on
+legend('FontSize', 16)
+ylabel("Angle [rad]", 'Interpreter','latex', 'FontSize', 18);
+
+
+linkaxes(ax,"x")
+
+
+%% Distance, speed calculation
+
+
+gpslog = readmatrix("recordings/GPS/sensorLog_20250701_06.txt");
+
+time= gpslog(:,1);
+lat = gpslog(:,3);
+lon = gpslog(:,4);
+alt = gpslog(:,5);
+
+
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
+
+geoplot(lat,lon,"-.",'LineWidth',1,'Color','r')
+geobasemap streets
+title("Car route")
+
+
+
+lat0 = lat(1);
+lon0 = lon(1);
+alt0 = alt(1);
+
+ref = [lat0 lon0 alt0];
+
+wgs84 = wgs84Ellipsoid('meters');
+[x, y, zUp] = geodetic2enu(lat, lon, alt, lat0, lon0, alt0, wgs84);
+
+figure;
+plot(x, y, 'b.-');
+hold on
+plot(x(1),y(1),'r*','DisplayName','Start')
+plot(x(end),y(end),'g*', 'DisplayName', 'End')
+axis equal;
+xlabel('East [m]');
+ylabel('North [m]');
+legend
+
+dx = diff(x);
+dy = diff(y);
+
+time_sec = time/1000;
+datetime_array = datetime(time_sec, 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC');
+sample_times = seconds(datetime_array - datetime_array(1));
+disp(sample_times);
+
+distances = (sqrt(dx.^2 + dy .^2));
+
+vel_est = distances./diff(sample_times); % m/s
+%disp(vel_est);
+
+tot_dist = sum(distances);
+%disp(tot_dist)
+
+figure('Name','speed estimates')
+plot(ty,v_peak, 'DisplayName','est') % km/h
+hold on
+plot(sample_times(1:end-1)+4, vel_est*3.6, 'DisplayName','GPS')
+legend
+grid on
+ylabel('speed [km/h]')
+xlabel('time [s]')
+
+%%
+
+fig = gcf;
+exportgraphics(fig, 'GPSMap_01.pdf', 'ContentType', 'vector');
+
+
+%%
+
+
+Gx_trunc = Gx(wsize/2:end-wsize/2);
+Gy_trunc = Gy(wsize/2:end-wsize/2);
+
+thet = tht(:);
+    
+heading_rate = Gx_trunc.*cos(thet)-Gy_trunc.*sin(thet);
+roll_rate    = Gx_trunc.*sin(thet)+Gy_trunc.*cos(thet);
+
+plot(ty,heading_rate);
+
+fc = 1; 
+fs = 100;
+n = 100; % filter order
+b = fir1(n, (fc/(fs/2)), 'low');
+
+heading_filtered = filtfilt(b,1,heading_rate);
+
+%total_heading = cumtrapz(heading_filtered)/fs;
+
+%plot(ty, total_heading);
+
+vx = v_peak.*cos(heading_filtered);
+vy = v_peak.*sin(heading_filtered);
+
+x = cumtrapz(ty, vx);
+y = cumtrapz(ty, vy);
+
+plot(x,y); axis equal

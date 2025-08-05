@@ -63,7 +63,7 @@ linkaxes(ax,"x")
 fs = 100;
 wsize = 100;
 ovlap = wsize-1;
-Ndft = 8192;
+Ndft = 1024;
 
 win = hann(wsize); % window function can be changed to something else
 [sx,fx,tx, Px] = spectrogram(Ax,win,ovlap,Ndft,fs);
@@ -93,8 +93,6 @@ legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest');
 
 %% Parameter estimation using STFT 
 
-model_dft = @(t,b) cos(b{1}) + b{2};
-
 dt = 1/100;
 N = size(M,1);   
 
@@ -123,16 +121,46 @@ end
 f_vals = fy(f0_idx);
 
 cols = 1:size(sy,2);   % cols for sub2ind
-%Fk = sy(sub2ind(size(sy), f0_idx, cols))/sum(win);
-Fk = sx(sub2ind(size(sx), f0_idx, cols))/sum(win);
-
+Fky = sy(sub2ind(size(sy), f0_idx, cols))/sum(win);
+Fkx = sx(sub2ind(size(sx), f0_idx, cols))/sum(win);
 
 figure;
-plot(t(wsize/2:end-wsize/2),real(Fk))
+plot(ty, real(Fky) ) % real-valued DFT
+title("real(Fky)")
+hold on
 
 %%
 
-delta_phi = unwrap(angle(Fk(2:end) ./ Fk(1:end-1)));  % size: 1 x (N-1)
+frame_idx = 4020;
+
+Fky_frame = sy(:, frame_idx) / sum(win);
+Fkx_frame = sx(:, frame_idx) / sum(win);
+
+plot(fy(1:100), abs(Fky_frame(1:100)))
+hold on
+%plot(f0_idx(frame_idx), f_vals(frame_idx), 'r*') 
+plot(f_vals(frame_idx), abs(Fky_frame(f0_idx(frame_idx))), 'r*');
+
+
+
+%%
+
+delta_phi = angle(Fkx(2:end) ./ Fkx(1:end-1));  % size: 1 x (N-1)
+
+%other_angle = atan2(imag(Fky),real(Fkx));
+inst_freq = fs/(2*pi) *delta_phi;
+plot(ty(1:end-1), inst_freq)
+
+
+
+%%
+su = cumsum(delta_phi);
+plot(ty(1:end-1), cumsum(delta_phi), 'DisplayName','dphi sum')
+hold on
+Fkx_angle = angle(Fkx);
+plot(ty, unwrap(Fkx_angle) ,'DisplayName', 'unwr angle(Fxk)') 
+legend
+%%
 
 % figure;
 % plot(real(Fk), imag(Fk), '-o');
@@ -141,7 +169,7 @@ delta_phi = unwrap(angle(Fk(2:end) ./ Fk(1:end-1)));  % size: 1 x (N-1)
 % ylabel('Imaginary Part');
 % title('Complex Trajectory of DFT Coefficient Over Time');
 
-n = length(Fk);
+n = length(Fkx);
 k_step = 5;  % color update interval (e.g., every 5 frames)
 intervals = 1:k_step:n;
 if intervals(end) < n
@@ -153,11 +181,11 @@ figure; hold on;
 for i = 1:num_segments
     k1 = intervals(i);
     k2 = intervals(i+1);
-    plot(real(Fk(k1:k2)), imag(Fk(k1:k2)), '-','Color', cmap(i,:), 'LineWidth', 0.5);
+    plot(real(Fkx(k1:k2)), imag(Fkx(k1:k2)), '-','Color', cmap(i,:), 'LineWidth', 0.5);
 end
 
 axis equal;
-xlabel('Real');
-ylabel('Imag');
+xlabel('Real [rad/s]');
+ylabel('Imag [rad/s]');
 colormap(cmap);
 grid on
