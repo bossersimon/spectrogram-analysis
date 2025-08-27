@@ -111,7 +111,7 @@ for l = 1:size(sy,2)
         idx = max(1, min(idx, Ndft));
         f0_idx(l) = idx;
     else
-        % use STFT peak
+        % here we pick the peak value in the STFT
         [~,rel_idx] = max(abs(sy(th_idx:end,l)));
         idx = rel_idx + th_idx - 1;
         f0_idx(l) = idx;
@@ -126,10 +126,17 @@ Fkx = sx(sub2ind(size(sx), f0_idx, cols))/sum(win);
 
 figure;
 plot(ty, real(Fky) ) % real-valued DFT
+%plot(real(Fkx),real(Fky))
 title("real(Fky)")
 hold on
 
 %%
+
+% Display one DFT frame.
+% Peak idx stored in f0_idx
+% Remaining issue is that the bin resolution is finite, and the peak
+% frequency jumps between bins. 
+% Should attempt to interpolate the spectrum.
 
 frame_idx = 4020;
 
