@@ -103,7 +103,7 @@ freq_res = fs/Ndft;
 f_th = 1.7; % Roughly 6 km/h
 th_idx = round(f_th / freq_res) + 1;
 
-f0_idx = nan(1,size(sy,2));
+f0_idx = nan(1,size(sy,2));  % bin indices of largest peaks in the sampled spectrum
 for l = 1:size(sy,2)
     if gyro_vals(l)<f_th
         % use gyro derived freq
@@ -118,10 +118,10 @@ for l = 1:size(sy,2)
     end
 end
 
-f_vals = fy(f0_idx);
+f_vals = fy(f0_idx); % values of largest peaks in the sampled spectrum
 
 cols = 1:size(sy,2);   % cols for sub2ind
-Fky = sy(sub2ind(size(sy), f0_idx, cols))/sum(win);
+Fky = sy(sub2ind(size(sy), f0_idx, cols))/sum(win);  % 
 Fkx = sx(sub2ind(size(sx), f0_idx, cols))/sum(win);
 
 figure;
@@ -148,6 +148,31 @@ hold on
 %plot(f0_idx(frame_idx), f_vals(frame_idx), 'r*') 
 plot(f_vals(frame_idx), abs(Fky_frame(f0_idx(frame_idx))), 'r*');
 
+
+
+%% Quadratic spectral peak interpolation
+
+beta = fy(f0_idx); % y(0) - value at maximum bin index
+alpha = fy(max(1,f0_idx-1)); % y(-1)
+gamma = fy(f0_idx +1); % y(1)
+
+% fractional offset 
+p = 0.5*(alpha-gamma)./(alpha- 2*beta + gamma);
+
+
+% peak location in fractional bins
+k_interp = f0_idx(:) + p(:);
+
+% peak magnitude estimate
+max_interp = beta-(1/4)*(alpha-gamma).*p;
+
+disp([max_interp(frame_idx) f_vals(frame_idx)])
+
+
+plot(fy(1:100), abs(Fky_frame(1:100)))
+hold on
+plot(f_vals(frame_idx), abs(Fky_frame(f0_idx(frame_idx))), 'r*');
+plot(max_interp(frame_idx), k_interp(frame_idx) , 'g*') 
 
 
 %%
