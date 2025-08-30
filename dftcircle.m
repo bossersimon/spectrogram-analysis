@@ -278,4 +278,3 @@ axis equal;
 xlabel('Real [rad/s]');
 ylabel('Imag [rad/s]');
 colormap(cmap);
-grid on
