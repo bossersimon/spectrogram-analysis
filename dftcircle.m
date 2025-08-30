@@ -103,25 +103,65 @@ freq_res = fs/Ndft;
 f_th = 1.7; % Roughly 6 km/h
 th_idx = round(f_th / freq_res) + 1;
 
-f0_idx = nan(1,size(sy,2));
-for l = 1:size(sy,2)
-    if gyro_vals(l)<f_th
-        % use gyro derived freq
-        idx = round(gyro_vals(l) / freq_res) + 1;
-        idx = max(1, min(idx, Ndft));
-        f0_idx(l) = idx;
-    else
-        % here we pick the peak value in the STFT
-        [~,rel_idx] = max(abs(sy(th_idx:end,l)));
-        idx = rel_idx + th_idx - 1;
-        f0_idx(l) = idx;
+f0_idx = nan(1,size(sy,2));  % bin indices of largest peaks in the sampled spectrum
+
+
+% for l = 1:size(sy,2)
+%     if gyro_vals(l)<f_th
+%         % use gyro derived freq
+%         idx = round(gyro_vals(l) / freq_res) + 1;
+%         idx = max(1, min(idx, Ndft));
+%         f0_idx(l) = idx;
+%     else
+%         % here we pick the peak value in the STFT
+%         [~,rel_idx] = max(abs(sy(th_idx:end,l)));
+%         idx = rel_idx + th_idx - 1;
+%         f0_idx(l) = idx;
+%     end
+% end
+
+curr_max_idx = 1;
+
+%Py_bp = zeros(size(sy));
+bp_width = 0.3; % in Hz
+max_jump = 3;
+for t = 1:size(sy,2)
+    if gyro_vals(t)<f_th 
+        % center around gyro freq
+        
+        %idx = round(gyro_vals(t) / freq_res) + 1;
+        %idx = max(1, min(idx, Ndft));
+        
+        if abs(idx - curr_max_idx) <= max_jump
+            f0_idx(t) = idx;
+            curr_max_idx = idx;
+       % else
+      %      f0_idx(t) = curr_max_idx;  % ignore jump
+        end
     end
+    %else
+        % obtain bp range from prev. window
+        lo_f = max(0, fy(curr_max_idx) - bp_width);
+        hi_f = fy(curr_max_idx) + bp_width;
+    
+        f_pass = fy >= lo_f & fy <= hi_f;
+        sy_bp = zeros(size(sy(:,t)));
+        sy_bp(f_pass) = sy(f_pass, t);
+        
+        %Py_bp(:, t) = abs(sy_bp).^2 / (norm(win)^2);
+    
+        [~,max_idx] = max(abs(sy_bp));
+        f0_idx(t) = max_idx; % store
+        curr_max_idx = max_idx; % update
+    %end
 end
 
-f_vals = fy(f0_idx);
+
+
+f_vals = fy(f0_idx); % values of largest peaks in the sampled spectrum
 
 cols = 1:size(sy,2);   % cols for sub2ind
-Fky = sy(sub2ind(size(sy), f0_idx, cols))/sum(win);
+Fky = sy(sub2ind(size(sy), f0_idx, cols))/sum(win);  % 
 Fkx = sx(sub2ind(size(sx), f0_idx, cols))/sum(win);
 
 figure;
@@ -147,6 +187,49 @@ plot(fy(1:100), abs(Fky_frame(1:100)))
 hold on
 %plot(f0_idx(frame_idx), f_vals(frame_idx), 'r*') 
 plot(f_vals(frame_idx), abs(Fky_frame(f0_idx(frame_idx))), 'r*');
+
+
+
+%% Quadratic spectral peak interpolation
+
+%beta = abs(sy(f0_idx)); % y(0) - magnitude at maximum bin index
+%alpha = abs(sy(max(1,f0_idx-1))); % y(-1)
+%gamma = abs(sy(f0_idx +1)); % y(1)
+
+cols = 1:size(sy, 2);
+alpha = abs(sy(sub2ind(size(sy), max(1,f0_idx-1), cols)))/sum(win); 
+beta  = abs(sy(sub2ind(size(sy), f0_idx, cols)))/sum(win);  
+gamma = abs(sy(sub2ind(size(sy), f0_idx+1, cols)))/sum(win); 
+
+%disp([alpha(frame_idx) beta(frame_idx) gamma(frame_idx)])
+
+% fractional offset 
+p = 0.5*(alpha-gamma)./(alpha- 2*beta + gamma);
+% peak location in fractional bins
+k_interp = f0_idx(:) + p(:);
+f_interp = (k_interp(:)-1+p(:))*fs/Ndft;
+%disp([f0_idx(frame_idx) p(frame_idx)])
+%disp(p(frame_idx))
+%disp([f_interp(frame_idx)])
+
+disp([k_interp(frame_idx) f0_idx(frame_idx)])
+
+% peak magnitude estimate
+max_interp = beta - (1/4) * (alpha - gamma) .* p;
+%max_interp = max_interp/sum(win);
+
+%disp([f_vals(frame_idx) max_interp(frame_idx)])
+%disp([alpha(frame_idx), beta(frame_idx), gamma(frame_idx)])
+
+plot(fy(1:100), abs(Fky_frame(1:100)))
+hold on
+plot(fy(f0_idx(frame_idx)), abs(Fky_frame(f0_idx(frame_idx))), 'r*');
+plot(f_interp(frame_idx), max_interp(frame_idx) , 'go')
+
+plot(fy(f0_idx(frame_idx)-1), alpha(frame_idx), 'y*')
+plot(fy(f0_idx(frame_idx)), beta(frame_idx), 'b*')
+plot(fy(f0_idx(frame_idx)+1), gamma(frame_idx), 'c*')
+
 
 
 
