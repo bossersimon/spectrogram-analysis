@@ -105,21 +105,6 @@ th_idx = round(f_th / freq_res) + 1;
 
 f0_idx = nan(1,size(sy,2));  % bin indices of largest peaks in the sampled spectrum
 
-
-% for l = 1:size(sy,2)
-%     if gyro_vals(l)<f_th
-%         % use gyro derived freq
-%         idx = round(gyro_vals(l) / freq_res) + 1;
-%         idx = max(1, min(idx, Ndft));
-%         f0_idx(l) = idx;
-%     else
-%         % here we pick the peak value in the STFT
-%         [~,rel_idx] = max(abs(sy(th_idx:end,l)));
-%         idx = rel_idx + th_idx - 1;
-%         f0_idx(l) = idx;
-%     end
-% end
-
 curr_max_idx = 1;
 
 %Py_bp = zeros(size(sy));
@@ -129,8 +114,8 @@ for t = 1:size(sy,2)
     if gyro_vals(t)<f_th 
         % center around gyro freq
         
-        %idx = round(gyro_vals(t) / freq_res) + 1;
-        %idx = max(1, min(idx, Ndft));
+        idx = round(gyro_vals(t) / freq_res) + 1;
+        idx = max(1, min(idx, Ndft));
         
         if abs(idx - curr_max_idx) <= max_jump
             f0_idx(t) = idx;
@@ -192,54 +177,71 @@ plot(f_vals(frame_idx), abs(Fky_frame(f0_idx(frame_idx))), 'r*');
 
 %% Quadratic spectral peak interpolation
 
-%beta = abs(sy(f0_idx)); % y(0) - magnitude at maximum bin index
-%alpha = abs(sy(max(1,f0_idx-1))); % y(-1)
-%gamma = abs(sy(f0_idx +1)); % y(1)
-
 cols = 1:size(sy, 2);
 alpha = abs(sy(sub2ind(size(sy), max(1,f0_idx-1), cols)))/sum(win); 
 beta  = abs(sy(sub2ind(size(sy), f0_idx, cols)))/sum(win);  
 gamma = abs(sy(sub2ind(size(sy), f0_idx+1, cols)))/sum(win); 
 
-%disp([alpha(frame_idx) beta(frame_idx) gamma(frame_idx)])
 
-% fractional offset 
-p = 0.5*(alpha-gamma)./(alpha- 2*beta + gamma);
-% peak location in fractional bins
-k_interp = f0_idx(:) + p(:);
-f_interp = (k_interp(:)-1+p(:))*fs/Ndft;
-%disp([f0_idx(frame_idx) p(frame_idx)])
-%disp(p(frame_idx))
-%disp([f_interp(frame_idx)])
+p = 0.5*(alpha-gamma)./(alpha- 2*beta + gamma); % fractional offset 
 
-disp([k_interp(frame_idx) f0_idx(frame_idx)])
+k_interp = f0_idx(:) + p(:); % peak location in fractional bins
 
-% peak magnitude estimate
-max_interp = beta - (1/4) * (alpha - gamma) .* p;
-%max_interp = max_interp/sum(win);
+f_interp = (k_interp(:)-1)*fs/Ndft; % corresponding peak frequency
 
-%disp([f_vals(frame_idx) max_interp(frame_idx)])
-%disp([alpha(frame_idx), beta(frame_idx), gamma(frame_idx)])
+max_interp = beta - (1/4) * (alpha - gamma) .* p; % peak magnitude estimate
 
 plot(fy(1:100), abs(Fky_frame(1:100)))
 hold on
-plot(fy(f0_idx(frame_idx)), abs(Fky_frame(f0_idx(frame_idx))), 'r*');
-plot(f_interp(frame_idx), max_interp(frame_idx) , 'go')
+plot(fy(f0_idx(frame_idx)), abs(Fky_frame(f0_idx(frame_idx))), 'bo');
+plot(f_interp(frame_idx), max_interp(frame_idx) , 'ro') % <---interpolated peak
 
-plot(fy(f0_idx(frame_idx)-1), alpha(frame_idx), 'y*')
-plot(fy(f0_idx(frame_idx)), beta(frame_idx), 'b*')
-plot(fy(f0_idx(frame_idx)+1), gamma(frame_idx), 'c*')
-
-
+plot(fy(f0_idx(frame_idx)-1), alpha(frame_idx), 'r*')
+plot(fy(f0_idx(frame_idx)), beta(frame_idx), 'r*')
+plot(fy(f0_idx(frame_idx)+1), gamma(frame_idx), 'r*')
 
 
-%%
+% parabola coefficients
+a = 0.5*(alpha(frame_idx) - 2*beta(frame_idx) + gamma(frame_idx));
+b = 0.5*(gamma(frame_idx) - alpha(frame_idx));
+c = beta(frame_idx);
 
-delta_phi = angle(Fkx(2:end) ./ Fkx(1:end-1));  % size: 1 x (N-1)
+xq = linspace(-1.2, 1.2, 200);  % fine resolution around the peak
+yq = a*xq.^2 + b*xq + c;        % parabola
+
+fq = (f0_idx(frame_idx)-1 + xq)*fs/Ndft; % convert to frequency
+
+% Plot
+plot(fq, yq, 'r--', 'LineWidth', 1.5)  % quadratic interpolation curve
+
+
+
+
+
+%% Obtaining the phase at interpolated peak
+
+Nframes = length(f_interp);
+Fy_interp = zeros(1,Nframes);
+n = (0:(L-1)).'; 
+
+for m = 1:Nframes
+    start_idx = m;
+    idx = start_idx:(start_idx + wsize-1);
+
+    y_frame = Ay(idx).*win(:);
+    f0 = f_interp(m);
+
+    Fy_interp(m) = y_frame*exp(-1j*2*pi*f0.*n/fs);
+end
+
+%% Diff. angle
+
+%delta_phi = angle(Fkx(2:end) ./ Fkx(1:end-1));  % size: 1 x (N-1)
+delta_phi =  angle(Fy_interp(2:end) ./ Fy_interp(1:end-1));
 
 %other_angle = atan2(imag(Fky),real(Fkx));
 inst_freq = fs/(2*pi) *delta_phi;
-plot(ty(1:end-1), inst_freq)
+%plot(ty(1:end-1), inst_freq)
 
 
 
