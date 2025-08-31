@@ -215,13 +215,11 @@ fq = (f0_idx(frame_idx)-1 + xq)*fs/Ndft; % convert to frequency
 plot(fq, yq, 'r--', 'LineWidth', 1.5)  % quadratic interpolation curve
 
 
-
-
-
 %% Obtaining the phase at interpolated peak
 
 Nframes = length(f_interp);
 Fy_interp = zeros(1,Nframes);
+L = length(win);
 n = (0:(L-1)).'; 
 
 for m = 1:Nframes
@@ -231,18 +229,26 @@ for m = 1:Nframes
     y_frame = Ay(idx).*win(:);
     f0 = f_interp(m);
 
-    Fy_interp(m) = y_frame*exp(-1j*2*pi*f0.*n/fs);
+    Fy_interp(m) = y_frame' *exp(-1j*2*pi*f0.*n/fs);
 end
 
 %% Diff. angle
 
 %delta_phi = angle(Fkx(2:end) ./ Fkx(1:end-1));  % size: 1 x (N-1)
-delta_phi =  angle(Fy_interp(2:end) ./ Fy_interp(1:end-1));
+delta_phi =  angle(Fy_interp(2:end) .* conj(Fy_interp(1:end-1)) );
 
 %other_angle = atan2(imag(Fky),real(Fkx));
 inst_freq = fs/(2*pi) *delta_phi;
-%plot(ty(1:end-1), inst_freq)
+plot(ty(1:end-1), inst_freq, 'DisplayName', 'dtheta')
+hold on
+plot(ty(1:end-1), f_interp(1:end-1), 'DisplayName', 'f interpolated')
+plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation')
 
+legend;
+
+%%
+figure;
+plot(ty, real(Fy_interp))
 
 
 %%
@@ -273,7 +279,8 @@ figure; hold on;
 for i = 1:num_segments
     k1 = intervals(i);
     k2 = intervals(i+1);
-    plot(real(Fkx(k1:k2)), imag(Fkx(k1:k2)), '-','Color', cmap(i,:), 'LineWidth', 0.5);
+    plot(real(Fky(k1:k2)), imag(Fky(k1:k2)), '-','Color', cmap(i,:), 'LineWidth', 0.5);
+    %plot(real(Fy_interp(k1:k2)), imag(Fy_interp(k1:k2)), '-','Color', cmap(i,:), 'LineWidth', 0.5);
 end
 
 axis equal;
