@@ -193,11 +193,11 @@ max_interp = beta - (1/4) * (alpha - gamma) .* p; % peak magnitude estimate
 
 plot(fy(1:100), abs(Fky_frame(1:100)))
 hold on
-plot(fy(f0_idx(frame_idx)), abs(Fky_frame(f0_idx(frame_idx))), 'bo');
-plot(f_interp(frame_idx), max_interp(frame_idx) , 'ro') % <---interpolated peak
+plot(fy(f0_idx(frame_idx)), abs(Fky_frame(f0_idx(frame_idx))), 'go');
+plot(f_interp(frame_idx), max_interp(frame_idx) , 'bo') % <---interpolated peak
 
 plot(fy(f0_idx(frame_idx)-1), alpha(frame_idx), 'r*')
-plot(fy(f0_idx(frame_idx)), beta(frame_idx), 'r*')
+%plot(fy(f0_idx(frame_idx)), beta(frame_idx), 'r*')
 plot(fy(f0_idx(frame_idx)+1), gamma(frame_idx), 'r*')
 
 
@@ -234,16 +234,19 @@ end
 
 %% Diff. angle
 
-%delta_phi = angle(Fkx(2:end) ./ Fkx(1:end-1));  % size: 1 x (N-1)
+%delta_phi = angle(Fy_interp(2:end) ./ Fy_interp(1:end-1));  % size: 1 x (N-1)
 delta_phi =  angle(Fy_interp(2:end) .* conj(Fy_interp(1:end-1)) );
 
 %other_angle = atan2(imag(Fky),real(Fkx));
 inst_freq = fs/(2*pi) *delta_phi;
-plot(ty(1:end-1), inst_freq, 'DisplayName', 'dtheta')
+plot(ty(1:end-1), inst_freq, 'DisplayName', 'f_inst')
 hold on
 plot(ty(1:end-1), f_interp(1:end-1), 'DisplayName', 'f interpolated')
 plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation')
+plot(ty(1:end-1), angle(Fy_interp(1:end-1)), 'DisplayName', 'phase1')
+plot(ty(2:end), angle(Fy_interp(1:end-1)), 'DisplayName', 'phase2')
 
+title('Frequency estimates')
 legend;
 
 %%
