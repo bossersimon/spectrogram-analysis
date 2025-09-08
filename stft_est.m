@@ -66,7 +66,8 @@ wsize = 130;
 ovlap = wsize-1;
 Ndft = 1024;
 
-win = hann(wsize); % window function can be changed to something else
+%win = hann(wsize); % window function can be changed to something else
+win = gausswin(wsize);
 %win = rectwin(wsize);
 [sx,fx,tx, Px] = spectrogram(Ax,win,ovlap,Ndft,fs);
 [sy,fy,ty, Py] = spectrogram(Ay,win,ovlap,Ndft,fs);
@@ -92,117 +93,6 @@ hold on;
 gyro_vals = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6 [km/h]
 p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
 legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest','FontSize', 18);
-
-
-%% Report plots
-
-win_func = @hann;
-
-
-start_indices = [270, 290,310,330, 340,350];
-%start_indices = 290;
-segment = Ax(start_indices:start_indices + wsize - 1);
-
-rect_win = ones(wsize,1);
-rect_segment = segment .* rect_win;
-
-win = win_func(wsize);
-tapered_segment = segment .* win;
-
-Nfft = 1024;
-f = (0:Nfft-1) * (fs/Nfft);
-t = (0:wsize-1)/fs;
-
-X_rect = fft(rect_segment, Nfft);
-X_tapered = fft(tapered_segment, Nfft);
-
-X_rect_mag = abs(X_rect);
-X_tapered_mag = abs(X_tapered);
-
-
-%%
-figure;
-subplot(1,2,1);
-t = (0:wsize-1)/fs;
-plot(t, rect_segment, 'k-', 'DisplayName', 'Raw segment');
-hold on;
-plot(t, tapered_segment, 'r-', 'DisplayName', 'Windowed');
-xlabel('Time [s]');
-ylabel('Amplitude');
-title('Time-domain Window');
-legend;
-grid on;
-
-% Frequency-domain (FFT)
-subplot(1,2,2);
-%plot(f, X_rect_mag, 'b', 'DisplayName','rect');
-hold on
-plot(f,X_tapered_mag);
-xlim([0 fs/2]);
-xlabel('Frequency [Hz]');
-ylabel('|X(f)|');
-title('FFT of Windowed Signal');
-%legend;
-grid on;
-
-
-%%
-
-
-%start_indices = [270, 280, 290];
-fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
-set(fig, 'PaperOrientation', 'landscape');
-
-%figure;
-subplot(1,2,1);
-hold on;
-xlabel('Time [s]');
-ylabel('Amplitude');
-title('Time-domain Windows');
-grid on;
-
-subplot(1,2,2);
-hold on;
-xlim([0 fs/2]);
-xlabel('Frequency [Hz]');
-ylabel('|X(f)|');
-title('FFT of Windowed Segments');
-grid on;
-
-
-for i = 1:length(start_indices)
-    idx = start_indices(i);
-    segment = Ax(idx : idx + wsize - 1);
-
-    % Apply windows
-    win = win_func(wsize);
-    tapered_segment = segment .* win;
-
-    % FFT
-    X_tapered = fft(tapered_segment, Nfft);
-    X_mag = abs(X_tapered);
-
-    % Plot time-domain signal
-    subplot(1,2,1);
-    plot(t + idx/fs, tapered_segment, 'DisplayName', sprintf('Frame %d', i)); % offset time axis
-
-    % Plot frequency-domain magnitude
-    subplot(1,2,2);
-    plot(f, X_mag, 'DisplayName', sprintf('Frame %d', i));
-end
-
-subplot(1,2,1);
-t2 = (start_indices(1):(start_indices(end)+wsize-1))/fs;
-plot(t2, Ax(start_indices(1):start_indices(end) + wsize - 1), 'DisplayName','Raw segment',LineWidth=1.5)
-
-
-% Add legends after loop
-subplot(1,2,1); legend;
-subplot(1,2,2); legend;
-%%
-%print(fig, 'my_figure.pdf', '-dpdf', '-fillpage');
-fig = gcf;
-exportgraphics(fig, 'STFT02.pdf', 'ContentType', 'vector');
 
 
 %% Parameter estimation using STFT 
@@ -408,7 +298,7 @@ plot(ty(1:end-1), dphi)
 
 %%
 fig = gcf;
-exportgraphics(fig, 'raw+recon_02.pdf', 'ContentType', 'vector');
+exportgraphics(fig, 'raw+recon_03.pdf', 'ContentType', 'vector');
 
 %%
 
@@ -632,10 +522,12 @@ Gy_trunc = Gy(wsize/2:end-wsize/2);
 
 thet = tht(:);
     
-heading_rate = Gx_trunc.*cos(thet)-Gy_trunc.*sin(thet);
-roll_rate    = Gx_trunc.*sin(thet)+Gy_trunc.*cos(thet);
+heading_rate = Gx_trunc.*cos(thet)+Gy_trunc.*sin(thet);
+roll_rate    = -Gx_trunc.*sin(thet)+Gy_trunc.*cos(thet);
 
+figure("Name","heading_rate")
 plot(ty,heading_rate);
+title('heading rate');
 
 fc = 1; 
 fs = 100;
@@ -644,14 +536,26 @@ b = fir1(n, (fc/(fs/2)), 'low');
 
 heading_filtered = filtfilt(b,1,heading_rate);
 
-%total_heading = cumtrapz(heading_filtered)/fs;
-
-%plot(ty, total_heading);
-
 vx = v_peak.*cos(heading_filtered);
 vy = v_peak.*sin(heading_filtered);
 
 x = cumtrapz(ty, vx);
 y = cumtrapz(ty, vy);
 
+figure;
 plot(x,y); axis equal
+title('x, y')
+
+%%
+
+X = [cos(thet), sin(thet), ones(size(thet))];  % model basis
+coeff_x = X \ Gx_trunc;    % [Ax; Bx; offset_x]
+coeff_y = X \ Gy_trunc;    % [Ay; By; offset_y]
+
+Ax = coeff_x(1); Bx = coeff_x(2); ox = coeff_x(3);
+Ay = coeff_y(1); By = coeff_y(2); oy = coeff_y(3);
+
+amp_x = sqrt(Ax^2 + Bx^2);
+amp_y = sqrt(Ay^2 + By^2);
+
+fprintf('Leakage amplitudes: Gx: %.4f, Gy: %.4f\n', amp_x, amp_y);
