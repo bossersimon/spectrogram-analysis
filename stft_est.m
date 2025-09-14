@@ -244,48 +244,25 @@ hold on
 plot(fx(1:100), abs(Fkx_frame(1:100)), 'r', "DisplayName","x")
 legend
 grid on
+
 %plot(f0_idx(frame_idx), f_vals(frame_idx), 'r*') 
 plot(f_vals(frame_idx), abs(Fky_frame(f0_idx(frame_idx))), 'b*');
 plot(f_vals(frame_idx), abs(Fkx_frame(f0_idx(frame_idx))), 'r*');
 
-t0 = (ty(frame_idx) - (wsize/2)/fs) : (1/fs) : (ty(frame_idx) + (wsize/2 - 1)/fs);
+win_idx = frame_idx : (frame_idx + wsize - 1);
+
+t0 = (win_idx - 1) / fs;
+%t0 = (ty(frame_idx) - (wsize/2)/fs) : (1/fs) : (ty(frame_idx) + (wsize/2 - 1)/fs);
 subplot(2,1,2);
 %plot(tx(frame_idx-wsize/2:frame_idx+wsize/2-1), win.*Ax(frame_idx-wsize/2:frame_idx+wsize/2-1),'DisplayName',"x")
-plot(t0, win.*Ax(frame_idx-wsize/2:frame_idx+wsize/2-1),'DisplayName',"x")
+plot(t0, win.*Ax(win_idx),'DisplayName',"x")
 hold on
-plot(t0, win.*Ay(frame_idx-wsize/2:frame_idx+wsize/2-1),'DisplayName',"x")
+plot(t0, win.*Ay(win_idx),'DisplayName',"x")
 %plot(ty(frame_idx-wsize/2:frame_idx+wsize/2-1), win.*Ay(frame_idx-wsize/2:frame_idx+wsize/2-1), "DisplayName", 'y')
 legend
 grid on
 
 
-%% 
-
-figure;
-subplot(2,1,1);
-plot(fy(1:100), abs(Fky_frame(1:100)), 'b', "DisplayName", "Ay (STFT)");
-hold on;
-plot(fx(1:100), abs(Fkx_frame(1:100)), 'r', "DisplayName", "Ax (STFT)");
-legend;
-xlabel('Frequency (Hz)');
-ylabel('Magnitude');
-grid on;
-xlim([0 10]);
-
-% Correct extraction of the exact samples used by spectrogram:
-start_sample = frame_idx;                  % window starts at this sample
-win_idx = start_sample : (start_sample + wsize - 1);
-
-% time vector for those samples
-time_win = (win_idx - 1) / fs;             % seconds, assuming sample 1 -> t=0
-
-subplot(2,1,2);
-plot(time_win, win .* Ax(win_idx), 'DisplayName', 'Ax (windowed)');
-hold on;
-plot(time_win, win .* Ay(win_idx), 'DisplayName', 'Ay (windowed)');
-legend;
-xlabel('Time (s)');
-grid on;
 %% Quadratic spectral peak interpolation
 
 cols = 1:size(sy, 2);
@@ -493,6 +470,7 @@ tht = wrapToPi(thetax_est);
 
 plot(ty, tht,'DisplayName','phase','LineWidth',1.5,'Color','b')
 hold on
+%plot(ty, tht,'mo','DisplayName','phase')
 ylabel("Phase [rad]", 'FontSize', 18, 'Interpreter','latex');
 title('Phase', 'FontSize', 20, 'Interpreter', 'latex');
 grid on
@@ -511,7 +489,8 @@ exportgraphics(fig, 'phasedist_02.pdf', 'ContentType', 'vector');
 %% 
 figure;
 plot(xhat, yhat)
-
+hold on
+%plot(Ax,Ay)
 
 %%
 
@@ -520,18 +499,33 @@ fs = 100;
 n = 100; % filter order
 by = fir1(n, (fc/(fs/2)), 'high');
 
+t = (0:N-1)*dt;
+t= transpose(t);
 
-Ax_filtered = filtfilt(by,1,Ax(wsize/2:end-wsize/2));
-Ay_filtered = filtfilt(by,1,Ay(wsize/2:end-wsize/2));
+Ax_filtered = filtfilt(by,1,Ax);
+Ay_filtered = filtfilt(by,1,Ay);
+
 xhat_filtered = filtfilt(by,1,xhat);
+yhat_filtered = filtfilt(by,1,yhat);
 
 figure;
-plot(ty,Ax_filtered)
+plot(t,Ax_filtered)
 hold on
+%plot(t,Ax_filtered,'mo')
 plot(ty,xhat_filtered)
+%plot(ty,xhat_filtered,'mo')
+grid on
 
+%mse = sum((Ax_filtered(:)-xhat(:)).^2)/(size(xhat,2));
 
-mse = sum((Ax_filtered(:)-xhat(:)).^2)/(size(xhat,2));
+%%
+figure;
+plot(t,atan2(Ay_filtered,Ax_filtered))
+hold on
+%plot(t,atan2(Ay_filtered,Ax_filtered),'mo')
+plot(ty,atan2(yhat_filtered,xhat_filtered))
+%plot(ty,atan2(yhat_filtered,xhat_filtered),'mo')
+
 %%
 theta_raw  = atan2(Ay_filtered,Ax_filtered);
 theta_raw2 = atan2(Ay,Ax);
@@ -547,6 +541,7 @@ plot(t,theta_raw2, 'DisplayName','raw','Color','b', 'LineWidth',1.5)
 title("raw phase")
 xlabel('Time [s]')
 ylabel('Angle [rad]')
+grid on
 %legend
 
 %% new figure
@@ -672,7 +667,7 @@ fig = gcf;
 exportgraphics(fig, 'GPSMap_01.pdf', 'ContentType', 'vector');
 
 
-%%
+%% This does not seem to work
 
 
 Gx_trunc = Gx(wsize/2:end-wsize/2);
@@ -685,6 +680,7 @@ heading_rate = Gx_trunc.*cos(thet) + Gy_trunc.*sin(thet);
 
 figure("Name","heading_rate")
 plot(ty,heading_rate);
+hold on
 title('heading rate');
 
 fc = 1; 
@@ -693,6 +689,7 @@ n = 100; % filter order
 by = fir1(n, (fc/(fs/2)), 'low');
 
 heading_filtered = filtfilt(by,1,heading_rate);
+plot(ty,heading_filtered)
 
 vx = v_peak.*cos(heading_filtered);
 vy = v_peak.*sin(heading_filtered);
@@ -700,6 +697,6 @@ vy = v_peak.*sin(heading_filtered);
 x = cumtrapz(ty, vx);
 y = cumtrapz(ty, vy);
 
-figure;
-plot(x,y); axis equal
-title('x, y')
+%figure;
+%plot(x,y); axis equal
+%title('x, y')
