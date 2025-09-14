@@ -2,8 +2,8 @@
 %% Test
 clear all
 
-t = (1:1000)';
-X = ones(1000,3);
+t = (1:100)';
+X = ones(100,3);
 X(:,2) = cos((2*pi)/50*t);
 X(:,3) = sin((2*pi)/50*t);
 y = 2*cos((2*pi)/50*t-pi/4+randn(size(t)));
