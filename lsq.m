@@ -59,7 +59,7 @@ wheel_circ = 1.82;
 model = @(b,t) cos(2*pi*b(1)*t+b(2)) + b(3);
 b0 = [0.1, 0.1, 0.1]; % initial guess
 
-lb = [0, -pi+1, min(Ay)];
+lb = [0, -pi, min(Ay)];
 ub = [5.5, pi, max(Ay)];
 
 opts = optimoptions('lsqcurvefit', ...

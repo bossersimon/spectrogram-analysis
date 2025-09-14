@@ -65,7 +65,8 @@ wsize = 100;
 ovlap = wsize-1;
 Ndft = 1024;
 
-win = hann(wsize); % window function can be changed to something else
+%win = hann(wsize); % window function can be changed to something else
+win = gausswin(wsize);
 [sx,fx,tx, Px] = spectrogram(Ax,win,ovlap,Ndft,fs);
 [sy,fy,ty, Py] = spectrogram(Ay,win,ovlap,Ndft,fs);
 
