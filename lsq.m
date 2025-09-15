@@ -70,9 +70,9 @@ opts = optimoptions('lsqcurvefit', ...
     'MaxFunctionEvaluations', 5000, ...
      'Display', 'off'); % 'iter'
 
-window_size = 26;
+window_size = 40;
 N = length(Ay);
-step = 8;
+step = 10;
 
 % preallocation
 n = floor((N - window_size) / step) + 1;
@@ -126,7 +126,7 @@ end
 
 %%
 
-num_pts = 9;
+num_pts = 11;
 half_width = floor(num_pts/2);
 
 start_idx = center_idx - half_width;
