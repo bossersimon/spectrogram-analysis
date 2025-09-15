@@ -186,6 +186,7 @@ end
 % plot(ty,dc_magnitude);
 
 %%
+figure;
 plot(ty, f0_idx, 'DisplayName','f0_idx')
 % hold on 
 % plot(ty, f0_idx_dyn, 'DisplayName','f0_idx_dyn')
