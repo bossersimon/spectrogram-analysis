@@ -1,6 +1,6 @@
 %% lsq2.m
 
-clear 
+clear all 
 
 
 t = 0:1/100:40;
@@ -15,14 +15,16 @@ hold on
 plot(t,Ay);
 
 %% 
-Ax = chirp(t,0,40,5)+0.05*rand(size(t));
-Ay = chirp(t,0,40,5)+0.05*rand(size(t));
-plot(t,Ax)
+% Ax = chirp(t,0,40,5)+0.05*rand(size(t));
+% Ay = chirp(t,0,40,5)+0.05*rand(size(t));
+% plot(t,Ax)
 
 %%
 
 model = @(b,t) cos(2*pi*b(1)*t+b(2)) + b(3);
 b0 = [0.1, 0.1, 0.1]; % initial guess
+b0x = b0;
+b0y = b0;
 
 lb = [0, -pi+1, min(Ay)];
 ub = [5.5, pi, max(Ay)];
@@ -32,9 +34,9 @@ opts = optimoptions('lsqcurvefit', ...
     'MaxFunctionEvaluations', 5000, ...
      'Display', 'off'); % 'iter'
 
-window_size = 10;
+window_size = 16;
 N = length(Ay);
-step = 5;
+step = 8;
 
 % preallocation
 n = floor((N - window_size) / step) + 1;
@@ -61,8 +63,8 @@ for i=window_size/2:step:N-window_size/2
 
     %b_hatx = lsqcurvefit(model, b0, t_rel, Ax_win, lb, ub, opts);
     %b_haty = lsqcurvefit(model, b0, t_rel, Ay_win, lb, ub, opts);
-    b_hatx = lsqcurvefit(model, b0, t_rel, Ax_win, [], [], opts);
-    b_haty = lsqcurvefit(model, b0, t_rel, Ay_win, [], [], opts);
+    b_hatx = lsqcurvefit(model, b0x, t_rel, Ax_win, [], [], opts);
+    b_haty = lsqcurvefit(model, b0y, t_rel, Ay_win, [], [], opts);
 
     y_fit = model(b_haty,t_rel);
     x_fit = model(b_hatx,t_rel);
@@ -79,11 +81,14 @@ for i=window_size/2:step:N-window_size/2
     x_fits(k,:) = x_fit;
     y_fits(k,:) = y_fit;
 
+    b0x = b_hatx;
+    b0y = b_haty;
+
     k=k+1;
 end
 
 %%
-num_pts = 5;
+num_pts = 9;
 half_width = floor(num_pts/2);
 
 start_idx = center_idx - half_width;
@@ -102,11 +107,11 @@ for k=1:n
     x_plot(k,:) = x_fits(k,start_idx:end_idx);
     y_plot(k,:) = y_fits(k,start_idx:end_idx);
     
-    plot(t_plot(k,:), x_plot(k,:))
+    plot(t_plot(k,:), x_plot(k,:), 'LineWidth',2)
     hold on
     %plot(t_plot(k,:), x_plot(k,:),'ro')
 end
-plot(t,Ax)
+plot(t,Ax,'LineStyle','-.')
 %%
 
 t_vec = reshape(t_plot.',1,[]);
@@ -138,8 +143,6 @@ hold on
 
 
 %% First method: "interpolate phase from frequency"
-
-
 
 freqx = xparam_matrix(:,1);
 freqy = yparam_matrix(:,1);
@@ -177,6 +180,8 @@ plot(t,Ay, 'Color','k')
 hold on
 plot(t_vec,y_vec,'Color', 'r')
 
+legend('Ay', 'Reconstructed')
+
 
 % 
 % figure;
@@ -184,11 +189,48 @@ plot(t_vec,y_vec,'Color', 'r')
 % plot(t,Ax, 'Color','k')
 % hold on
 % plot(time,xvals,'Color', 'r')
+%%
 
+figure;
+plot(t_vec,x_vec)
+hold on
+plot(t_vec, y_vec)
+legend('xhat', 'yhat')
 
 
 %%
 
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
+
+tl = tiledlayout(2,1,"TileIndexing","columnmajor");
+xlabel(tl,'Time [s]','Interpreter','latex', 'FontSize', 20);
+
+ax = [];
+ax(end+1) =nexttile;
+plot(t_vec,y_vec,'DisplayName','yhat', 'LineWidth',1.5)
+
+hold on
+plot(t_vec,x_vec,'DisplayName','xhat','LineWidth',1.5)
+
+title('Time signals', 'FontSize', 20, 'Interpreter', 'latex');
+grid on
+legend
+
+ax(end+i)=nexttile;
+tht = wrapToPi(phase);
+
+plot(t_vec, tht,'DisplayName','phase','LineWidth',1.5,'Color','b')
+hold on
+%plot(ty, tht,'mo','DisplayName','phase')
+ylabel("Phase [rad]", 'FontSize', 18, 'Interpreter','latex');
+title('Phase', 'FontSize', 20, 'Interpreter', 'latex');
+grid on
+
+linkaxes(ax,"x")
+
+
+%%
 
 
 argx_unwr = unwrap(argx);

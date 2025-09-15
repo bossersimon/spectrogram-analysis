@@ -1,6 +1,7 @@
 
 %% lsq.m
 
+clear all
 
 accelScale = 1/9.82; % scale accelerometer readings
 
@@ -58,6 +59,8 @@ wheel_circ = 1.82;
 
 model = @(b,t) cos(2*pi*b(1)*t+b(2)) + b(3);
 b0 = [0.1, 0.1, 0.1]; % initial guess
+b0x = b0;
+b0y = b0;
 
 lb = [0, -pi, min(Ay)];
 ub = [5.5, pi, max(Ay)];
@@ -67,9 +70,9 @@ opts = optimoptions('lsqcurvefit', ...
     'MaxFunctionEvaluations', 5000, ...
      'Display', 'off'); % 'iter'
 
-window_size = 10;
+window_size = 26;
 N = length(Ay);
-step = 5;
+step = 8;
 
 % preallocation
 n = floor((N - window_size) / step) + 1;
@@ -96,8 +99,8 @@ for i=window_size/2:step:N-window_size/2
   
     %b_hatx = lsqcurvefit(model, b0, t_rel, Ax_win, lb, ub, opts);
     %b_haty = lsqcurvefit(model, b0, t_rel, Ay_win, lb, ub, opts);
-    b_hatx = lsqcurvefit(model, b0, t_rel, Ax_win, [], [], opts);
-    b_haty = lsqcurvefit(model, b0, t_rel, Ay_win, [], [], opts);
+    b_hatx = lsqcurvefit(model, b0x, t_rel, Ax_win, [], [], opts);
+    b_haty = lsqcurvefit(model, b0y, t_rel, Ay_win, [], [], opts);
 
     y_fit = model(b_haty,t_rel);
     x_fit = model(b_hatx,t_rel);
@@ -114,13 +117,16 @@ for i=window_size/2:step:N-window_size/2
     x_fits(k,:) = x_fit;
     y_fits(k,:) = y_fit;
 
+    b0x = b_hatx;
+    b0y = b_haty;
+
     k=k+1;
 end
 
 
 %%
 
-num_pts = 5;
+num_pts = 9;
 half_width = floor(num_pts/2);
 
 start_idx = center_idx - half_width;
@@ -139,7 +145,7 @@ for k=1:n
     x_plot(k,:) = x_fits(k,start_idx:end_idx);
     y_plot(k,:) = y_fits(k,start_idx:end_idx);
     
-    plot(t_plot(k,:), x_plot(k,:))
+    plot(t_plot(k,:), x_plot(k,:), 'LineWidth',2)
     hold on
     %plot(t_plot(k,:), x_plot(k,:),'ro')
 end
@@ -164,7 +170,7 @@ figure;
 
 plot(t,Ay/accelScale, 'Color','k')
 hold on
-plot(time,yvals/accelScale,'Color', 'r')
+plot(t_vec, y_vec/accelScale,'Color', 'r')
 
 if accelScale < 1
     ylabel('Acceleration [m/s²]')
@@ -178,7 +184,7 @@ figure;
 
 plot(t,Ax/accelScale, 'Color','k')
 hold on
-plot(time,xvals/accelScale,'Color', 'r')
+plot(t_vec,x_vec/accelScale,'Color', 'r')
 
 if accelScale < 1
     ylabel('Acceleration [m/s²]')
@@ -190,37 +196,48 @@ title('X-axis')
 
 
 
+%% DC removal
 
-
-
-
-%% Distance calculation
+xparam_matrix = cell2mat(xparams');
+yparam_matrix = cell2mat(yparams');
 
 xoffs = xparam_matrix(:,3);
 yoffs = yparam_matrix(:,3);
 
-xcorr = xvals - xoffs.';
-ycorr = yvals - yoffs.';
+x_corrected = x_plot - xoffs;
+y_corrected = y_plot - yoffs;
+
+x_corrected = reshape(x_corrected.',1,[]);
+y_corrected = reshape(y_corrected.',1,[]);
 
 figure;
-plot(time,xvals,'DisplayName','xhat')
+plot(t_vec,x_vec,'DisplayName','xhat')
 hold on
-plot(time,xcorr,'DisplayName','xhat_ nooffset')
+plot(t_vec,x_corrected,'DisplayName','xhat_ nooffset')
 %plot(time,yvals)
 legend
 
-figure;
-plot(xvals,yvals)
-hold on
-plot(xcorr,ycorr)
 %%
+
+figure;
+plot(x_vec,y_vec)
+hold on
+plot(x_corrected,y_corrected)
+legend('estimate', 'estimate_nooffset')
+
+%% phase from curve fit  
 
 arg_x = xparam_matrix(:,2);
 arg_y = yparam_matrix(:,2);
 
 phase_raw = atan2(yvals,xvals); %
-phase_corr = atan2(ycorr,xcorr);
+phase_corr = atan2(y_corrected,x_corrected);
 phase_unwr = unwrap(phase_raw);
+
+%% phase from atan2
+
+phase = atan2(y_corrected,x_corrected);
+plot(t_vec,phase)
 
 
 %% Plot 3 frames
@@ -233,9 +250,11 @@ for i =40:220
    % plot(t_windows(i,window_size/2), y_fits(i,window_size/2),'o')
 end
 
-    plot(time(40:220),ycorr(40:220))
-    plot(time(40:220),xcorr(40:220))
+    plot(time(40:220),y_corrected(40:220))
+    plot(time(40:220),x_corrected(40:220))
    % plot(time,xcorr)
+
+   legend('')
 
 
 %%
