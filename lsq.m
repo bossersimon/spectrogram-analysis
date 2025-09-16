@@ -6,7 +6,7 @@ clear all
 accelScale = 1/9.82; % scale accelerometer readings
 
 
-M = readmatrix("recordings/recording_20250701_05.csv");
+M = readmatrix("recordings/recording_20250701_03.csv");
 
 % Lowpass 
 fc = 6; 
@@ -225,11 +225,30 @@ legend('estimate', 'estimate_nooffset')
 arg_x = xparam_matrix(:,2);
 arg_y = yparam_matrix(:,2);
 
-phase_raw = atan2(yvals,xvals); %
-phase_corr = atan2(y_corrected,x_corrected);
-phase_unwr = unwrap(phase_raw);
+phase_corrected = atan2(y_corrected,x_corrected);
 
 %% phase from atan2
 
 phase = atan2(y_corrected,x_corrected);
 plot(t_vec,phase)
+
+
+%%
+
+
+fc = 1; 
+fs = 100;
+n = 100; % filter order
+by = fir1(n, (fc/(fs/2)), 'high');
+
+t = (0:N-1)*dt;
+t= transpose(t);
+
+Ax_filtered = filtfilt(by,1,Ax);
+Ay_filtered = filtfilt(by,1,Ay);
+
+figure;
+plot(t,atan2(Ay_filtered, Ax_filtered))
+hold on
+plot(t_vec, phase)
+legend('raw', 'fit')
