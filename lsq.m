@@ -6,7 +6,7 @@ clear all
 accelScale = 1/9.82; % scale accelerometer readings
 
 
-M = readmatrix("recordings/recording_20250701_01.csv");
+M = readmatrix("recordings/recording_20250701_05.csv");
 
 % Lowpass 
 fc = 6; 
@@ -94,11 +94,8 @@ for i=window_size/2:step:N-window_size/2
     Ay_win = Ay(j);
     Ax_win = Ax(j);
 
-    %t_rel = t_win-t_win(center_idx);
     t_rel = t_win;
-  
-    %b_hatx = lsqcurvefit(model, b0, t_rel, Ax_win, lb, ub, opts);
-    %b_haty = lsqcurvefit(model, b0, t_rel, Ay_win, lb, ub, opts);
+
     b_hatx = lsqcurvefit(model, b0x, t_rel, Ax_win, [], [], opts);
     b_haty = lsqcurvefit(model, b0y, t_rel, Ay_win, [], [], opts);
 
@@ -166,7 +163,6 @@ plot(t_vec, y_vec)
 %% Plot full signals
 
 figure;
-
 plot(t,Ay/accelScale, 'Color','k')
 hold on
 plot(t_vec, y_vec/accelScale,'Color', 'r')
@@ -180,9 +176,7 @@ xlabel('Time [s]')
 title('Y-axis')
 
 
-
 figure;
-
 plot(t,Ax/accelScale, 'Color','k')
 hold on
 plot(t_vec,x_vec/accelScale,'Color', 'r')
@@ -216,7 +210,6 @@ figure;
 plot(t_vec,x_vec,'DisplayName','xhat')
 hold on
 plot(t_vec,x_corrected,'DisplayName','xhat_ nooffset')
-%plot(time,yvals)
 legend
 
 %%
@@ -240,4 +233,3 @@ phase_unwr = unwrap(phase_raw);
 
 phase = atan2(y_corrected,x_corrected);
 plot(t_vec,phase)
-

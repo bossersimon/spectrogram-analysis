@@ -142,8 +142,6 @@ for t = 1:size(sy,2)
     %end
 end
 
-
-
 f_vals = fy(f0_idx); % values of largest peaks in the sampled spectrum
 
 cols = 1:size(sy,2);   % cols for sub2ind
@@ -262,6 +260,8 @@ hold on
 Fkx_angle = angle(Fkx);
 plot(ty, unwrap(Fkx_angle) ,'DisplayName', 'unwr angle(Fxk)') 
 legend
+
+
 %%
 
 % figure;
