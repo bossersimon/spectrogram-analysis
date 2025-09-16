@@ -6,7 +6,7 @@ clear all
 accelScale = 1/9.82; % scale accelerometer readings
 
 
-M = readmatrix("recordings/recording_20250701_02.csv");
+M = readmatrix("recordings/recording_20250701_01.csv");
 
 % Lowpass 
 fc = 6; 
@@ -62,15 +62,15 @@ b0 = [0.1, 0.1, 0.1]; % initial guess
 b0x = b0;
 b0y = b0;
 
-lb = [0, -pi, min(Ay)];
-ub = [5.5, pi, max(Ay)];
+lb = [0, 0, min(Ay)];
+ub = [5.5, 2*pi, max(Ay)];
 
 opts = optimoptions('lsqcurvefit', ...
     'Algorithm','levenberg-marquardt', ...
     'MaxFunctionEvaluations', 5000, ...
      'Display', 'off'); % 'iter'
 
-window_size = 40;
+window_size = 36;
 N = length(Ay);
 step = 10;
 
@@ -134,7 +134,7 @@ end_idx = center_idx + half_width;
 
 n = size(t_windows, 1);
 
-t_plot = zeros(n, num_pts);
+t_plot = zeros(n, num_pts); % contains all individual fits
 x_plot = zeros(n, num_pts);
 y_plot = zeros(n, num_pts);
 
@@ -158,11 +158,10 @@ t_vec = reshape(t_plot.',1,[]);
 x_vec = reshape(x_plot.',1,[]);
 y_vec = reshape(y_plot.',1,[]);
 
+figure;
 plot(t_vec, x_vec)
 hold on
 plot(t_vec, y_vec)
-
-
 
 %% Plot full signals
 
@@ -180,6 +179,8 @@ end
 xlabel('Time [s]')
 title('Y-axis')
 
+
+
 figure;
 
 plot(t,Ax/accelScale, 'Color','k')
@@ -193,6 +194,7 @@ else
 end
 xlabel('Time [s]')
 title('X-axis')
+grid on
 
 
 
@@ -239,35 +241,3 @@ phase_unwr = unwrap(phase_raw);
 phase = atan2(y_corrected,x_corrected);
 plot(t_vec,phase)
 
-
-%% Plot 3 frames
-
-for i =40:220
-    plot(t_windows(i,:),x_fits(i,:))
-    hold on
-    plot(t_windows(i,:),y_fits(i,:))
-   % plot(t_windows(i,window_size/2), x_fits(i,window_size/2),'o')
-   % plot(t_windows(i,window_size/2), y_fits(i,window_size/2),'o')
-end
-
-    plot(time(40:220),y_corrected(40:220))
-    plot(time(40:220),x_corrected(40:220))
-   % plot(time,xcorr)
-
-   legend('')
-
-
-%%
-
-
-figure;
-plot(time,phase_corr,'DisplayName','phase (offset removed)')
-hold on
-plot(time,phase_raw,'DisplayName','raw phase')
-%plot(time,arg_x,'DisplayName','omega*t+phi')
-ylabel('Angle [rad]')
-xlabel('Time [s]')
-title('LSQ Angle Estimate')
-legend
-
-fprintf('LSQ distance estimate: %.2f\n', phase_unwr(end)*wheel_circ/(2*pi));
