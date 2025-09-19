@@ -42,18 +42,18 @@ legend('x','y')
 
 % Linear model: Ccos(wt) + Dsin(wt) + B
 
-window_size=30;
-step = 30;
+window_size=50;
+step = 50;
 N = length(y); % recording length
 
 n = floor((N - window_size) / step) + 1; % number of fits
 
 % preallocation
 time = zeros(1,n);
-%xvals = zeros(1,n);
-%yvals = zeros(1,n);
-betas = zeros(n,3);
+betas_y = zeros(n,3);
+betas_x = zeros(n,3);
 yhat = zeros(n,window_size);
+xhat = zeros(n,window_size);
 t_vec = zeros(n,window_size);
 
 A = ones(window_size,3);     % design matrix
@@ -65,14 +65,21 @@ y = y(:);
 f0 = 0; % starting frequency
 delta = 2; % 2*delta search range
 best_y = zeros(n,window_size);
+best_x = zeros(n,window_size);
 
 y_fit = zeros(1,window_size);
 y_best = zeros(1,window_size);
     
+x_fit = zeros(1,window_size);
+x_best = zeros(1,window_size);
+
 
 for k = 1:n
-    best_err = inf;
-    best_f = 0;
+    best_err_y = inf;
+    best_f_y = 0;
+
+    best_err_x = inf;
+    best_f_x = 0;
     
     f_candidates = linspace(f0 - delta, f0 + delta, 300);
 
@@ -82,22 +89,32 @@ for k = 1:n
 
         start_idx = (k-1)*step +1;
         j = start_idx:start_idx+ window_size -1; % slice
-        betas(k,:) = A\y(j);
+        betas_y(k,:) = A\y(j);
+        betas_x(k,:) = A\x(j);
         
-        y_fit = betas(k,1)*cos(2*pi*f*t_win) + betas(k,2)*sin(2*pi*f*t_win) + betas(k,3);
+        y_fit = betas_y(k,1)*cos(2*pi*f*t_win) + betas_y(k,2)*sin(2*pi*f*t_win) + betas_y(k,3);
+        x_fit = betas_x(k,1)*cos(2*pi*f*t_win) + betas_x(k,2)*sin(2*pi*f*t_win) + betas_x(k,3);
 
-        err = immse(y(j),y_fit);
+        err_y = immse(y(j),y_fit);
+        err_x = immse(x(j),x_fit);
 
-        if err<best_err
-            best_err = err;
-            best_f = f;
-            y_best = y_fit;
+        if err_y<best_err_y
+            best_err_y = err_y;
+            best_f_y = f;
+            y_best = y_fit;% -betas_y(k,3);
+        end
+        
+        if err_x<best_err_x
+            best_err_x = err_x;
+            best_f_x = f;
+            x_best = x_fit;% -betas_x(k,3);
         end
     end
 
-    f0 = best_f; % update search range
+    f0 = (best_f_y+best_f_x)/2; % update search range
 
     yhat(k,:) = y_best; % store results
+    xhat(k,:) = x_best; % store results
     t_vec(k,:) = t(j);
 
 end 
@@ -109,10 +126,30 @@ figure;
 
 plot(t,y);
 hold on
+plot(t,x);
 for k=1:n
     start_idx = (k-1)*step +1;
     plt_indices = start_idx;
     plot(t_vec(k,:), yhat(k,:))
+    plot(t_vec(k,:), xhat(k,:))
+end
+
+
+%% phase
+
+args = zeros(n,window_size);
+
+yhat = yhat-betas_y(:,3);
+xhat = xhat-betas_x(:,3);
+
+figure;
+for k=1:n
+    start_idx = (k-1)*step +1;
+    plt_indices = start_idx;
+
+    args(k,:) = atan2(yhat(k,:),xhat(k,:));
+    plot(t_vec(k,:), args(k,:))
+    hold on
 end
 
 %plot(t,yhat,'r','LineWidth',2);
