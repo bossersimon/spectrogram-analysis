@@ -6,7 +6,7 @@ clear all
 accelScale = 1/9.82; % scale accelerometer readings
 
 
-M = readmatrix("recordings/recording_20250701_03.csv");
+M = readmatrix("recordings/recording_20250701_02.csv");
 
 % Lowpass 
 fc = 6; 
@@ -49,8 +49,11 @@ for i = 1:3
 end
 linkaxes(ax,"x")
 
-Ax = M_filt(:,1);
-Ay = M_filt(:,2);
+%Ax = M_filt(:,1);
+%Ay = M_filt(:,2);
+Ax = M(:,1);
+Ay = M(:,2);
+
  
 wheel_circ = 1.82;
 
@@ -70,9 +73,9 @@ opts = optimoptions('lsqcurvefit', ...
     'MaxFunctionEvaluations', 5000, ...
      'Display', 'off'); % 'iter'
 
-window_size = 36;
+window_size = 90;
 N = length(Ay);
-step = 10;
+step = 45;
 
 % preallocation
 n = floor((N - window_size) / step) + 1;
@@ -88,6 +91,7 @@ y_fits = zeros(n,window_size);
 k=1;
 center_idx = window_size/2;
 
+tic
 for i=window_size/2:step:N-window_size/2
     j = i-window_size/2+1:(i+window_size/2);
     t_win = t(j);
@@ -119,11 +123,11 @@ for i=window_size/2:step:N-window_size/2
 
     k=k+1;
 end
-
+toc
 
 %%
 
-num_pts = 11;
+num_pts = 45;
 half_width = floor(num_pts/2);
 
 start_idx = center_idx - half_width;
@@ -135,20 +139,26 @@ t_plot = zeros(n, num_pts); % contains all individual fits
 x_plot = zeros(n, num_pts);
 y_plot = zeros(n, num_pts);
 
-figure;
 
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
+
+plot(t,Ax, 'Color', 'k', 'LineWidth',1)
+hold on
 for k=1:n
     t_plot(k,:) = t_windows(k,start_idx:end_idx);
     x_plot(k,:) = x_fits(k,start_idx:end_idx);
     y_plot(k,:) = y_fits(k,start_idx:end_idx);
     
-    plot(t_plot(k,:), x_plot(k,:), 'LineWidth',2)
-    hold on
+    plot(t_plot(k,:), x_plot(k,:), 'LineWidth',2, 'LineStyle','-')
     %plot(t_plot(k,:), x_plot(k,:),'ro')
 end
-plot(t,Ax)
+grid on
 
+%%
 
+fig = gcf;
+exportgraphics(fig, 'lsq01_.pdf', 'ContentType', 'vector');
 %%
 
 t_vec = reshape(t_plot.',1,[]);
@@ -207,9 +217,9 @@ x_corrected = reshape(x_corrected.',1,[]);
 y_corrected = reshape(y_corrected.',1,[]);
 
 figure;
-plot(t_vec,x_vec,'DisplayName','xhat')
+plot(t_vec,x_vec,'DisplayName','xhat', 'LineWidth',2)
 hold on
-plot(t_vec,x_corrected,'DisplayName','xhat_ nooffset')
+plot(t_vec,x_corrected,'DisplayName','xhat_ nooffset','LineWidth',2)
 legend
 
 %%
@@ -224,7 +234,6 @@ legend('estimate', 'estimate_nooffset')
 
 arg_x = xparam_matrix(:,2);
 arg_y = yparam_matrix(:,2);
-
 phase_corrected = atan2(y_corrected,x_corrected);
 
 %% phase from atan2

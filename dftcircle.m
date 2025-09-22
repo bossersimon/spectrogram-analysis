@@ -4,7 +4,7 @@
 clear all
 accelScale = 1;%/9.82;
 
-M = readmatrix("recordings/recording_20250701_06.csv");
+M = readmatrix("recordings/recording_20250701_02.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -220,6 +220,7 @@ Nframes = length(f_interp);
 Fy_interp = zeros(1,Nframes);
 L = length(win);
 n = (0:(L-1)).'; 
+center_offset = (L-1)/2;
 
 for m = 1:Nframes
     start_idx = m;
@@ -228,7 +229,9 @@ for m = 1:Nframes
     y_frame = Ay(idx).*win(:);
     f0 = f_interp(m);
 
-    Fy_interp(m) = y_frame' *exp(-1j*2*pi*f0.*n/fs);
+    %Fy_interp(m) = y_frame' *exp(-1j*2*pi*f0.*n/fs); % DFT at peak specifically
+    Fy_interp(m) = y_frame' * exp(-1j*2*pi*f0.*(n - center_offset)/fs);
+
 end
 
 %% Diff. angle
@@ -242,8 +245,8 @@ plot(ty(1:end-1), inst_freq, 'DisplayName', 'f_inst')
 hold on
 plot(ty(1:end-1), f_interp(1:end-1), 'DisplayName', 'f interpolated')
 plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation')
-plot(ty(1:end-1), angle(Fy_interp(1:end-1)), 'DisplayName', 'phase1')
-plot(ty(2:end), angle(Fy_interp(1:end-1)), 'DisplayName', 'phase2')
+%plot(ty(1:end-1), angle(Fy_interp(1:end-1)), 'DisplayName', 'phase1')
+%plot(ty(2:end), angle(Fy_interp(1:end-1)), 'DisplayName', 'phase2')
 
 title('Frequency estimates')
 legend;

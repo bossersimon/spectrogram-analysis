@@ -30,8 +30,11 @@ N = size(M,1);
 t = (0:N-1)*dt;
 t= transpose(t);
 
-x = M_filt(:,1);
-y = M_filt(:,2);
+%x = M_filt(:,1);
+%y = M_filt(:,2);
+
+x = M(:,1);
+y = M(:,2);
 
 plot(t,x);
 hold on
@@ -42,8 +45,8 @@ legend('x','y')
 
 % Linear model: Ccos(wt) + Dsin(wt) + B
 
-window_size=50;
-step = 50;
+window_size=80;
+step = 80;
 N = length(y); % recording length
 
 n = floor((N - window_size) / step) + 1; % number of fits
@@ -63,7 +66,7 @@ y = y(:);
 % Now need to iterate over different f
 
 f0 = 0; % starting frequency
-delta = 2; % 2*delta search range
+delta = 1; % 2*delta search range
 best_y = zeros(n,window_size);
 best_x = zeros(n,window_size);
 
@@ -73,7 +76,7 @@ y_best = zeros(1,window_size);
 x_fit = zeros(1,window_size);
 x_best = zeros(1,window_size);
 
-
+tic
 for k = 1:n
     best_err_y = inf;
     best_f_y = 0;
@@ -81,7 +84,7 @@ for k = 1:n
     best_err_x = inf;
     best_f_x = 0;
     
-    f_candidates = linspace(f0 - delta, f0 + delta, 300);
+    f_candidates = linspace(f0 - delta, f0 + delta, 20);
 
     for f = f_candidates
         A(:,1) = cos(2*pi*f*t_win);
@@ -118,37 +121,43 @@ for k = 1:n
     t_vec(k,:) = t(j);
 
 end 
-    
+toc
 
 %% plotting
 
-figure;
 
-plot(t,y);
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
+
+plot(t,y,'Color','k');
 hold on
-plot(t,x);
+%plot(t,x);
 for k=1:n
     start_idx = (k-1)*step +1;
     plt_indices = start_idx;
-    plot(t_vec(k,:), yhat(k,:))
-    plot(t_vec(k,:), xhat(k,:))
+    plot(t_vec(k,:), yhat(k,:)-betas_y(k,3), 'LineWidth',2)
+    %plot(t_vec(k,:), xhat(k,:))
 end
+grid on
 
+%%
+fig = gcf;
+exportgraphics(fig, 'linearfit_01.pdf', 'ContentType', 'vector');
 
 %% phase
 
 args = zeros(n,window_size);
 
-yhat = yhat-betas_y(:,3);
-xhat = xhat-betas_x(:,3);
+yhat0 = yhat-betas_y(:,3);
+xhat0 = xhat-betas_x(:,3);
 
 figure;
 for k=1:n
     start_idx = (k-1)*step +1;
     plt_indices = start_idx;
 
-    args(k,:) = atan2(yhat(k,:),xhat(k,:));
-    plot(t_vec(k,:), args(k,:))
+    args(k,:) = atan2(yhat0(k,:),xhat0(k,:));
+    plot(t_vec(k,:), args(k,:), 'LineWidth',2)
     hold on
 end
 

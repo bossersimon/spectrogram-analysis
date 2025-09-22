@@ -5,7 +5,7 @@ clear
 
 accelScale = 1/9.82;
 
-M = readmatrix("recordings/recording_20250701_06.csv");
+M = readmatrix("recordings/recording_20250701_02.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -69,8 +69,10 @@ Ndft = 1024;
 win = hann(wsize); % window function can be changed to something else
 %win = gausswin(wsize);
 %win = rectwin(wsize);
+tic
 [sx,fx,tx, Px] = spectrogram(Ax,win,ovlap,Ndft,fs);
 [sy,fy,ty, Py] = spectrogram(Ay,win,ovlap,Ndft,fs);
+toc
 
 wheel_circ = 1.82;
 v_car = fy*wheel_circ*3.6; % speed in km/h
