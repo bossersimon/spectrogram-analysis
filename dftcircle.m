@@ -219,6 +219,7 @@ plot(fq, yq, 'r--', 'LineWidth', 1.5)  % quadratic interpolation curve
 Nframes = length(f_interp);
 Fy_interp = zeros(1,Nframes);
 L = length(win);
+
 n = (0:(L-1)).'; 
 center_offset = (L-1)/2;
 
@@ -239,17 +240,21 @@ end
 %delta_phi = angle(Fy_interp(2:end) ./ Fy_interp(1:end-1));  % size: 1 x (N-1)
 delta_phi =  angle(Fy_interp(2:end) .* conj(Fy_interp(1:end-1)) );
 
+%%
+
 %other_angle = atan2(imag(Fky),real(Fkx));
 inst_freq = fs/(2*pi) *delta_phi;
 plot(ty(1:end-1), inst_freq, 'DisplayName', 'f_inst')
 hold on
 plot(ty(1:end-1), f_interp(1:end-1), 'DisplayName', 'f interpolated')
 plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation')
+%plot(ty(1:end-1), f_est, 'DisplayName', 'corrected')
 %plot(ty(1:end-1), angle(Fy_interp(1:end-1)), 'DisplayName', 'phase1')
 %plot(ty(2:end), angle(Fy_interp(1:end-1)), 'DisplayName', 'phase2')
 
 title('Frequency estimates')
 legend;
+
 
 %%
 figure;

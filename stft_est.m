@@ -343,7 +343,7 @@ Fy_interp = zeros(1,Nframes);
 Fx_interp = zeros(1,Nframes);
 
 L = length(win);
-n = (0:(L-1)).'; 
+n = (0:(L-1)).';
 
 for m = 1:Nframes
     start_idx = m;
@@ -371,11 +371,11 @@ model_dft = @(t,b) cos(b{1}) + b{2};
 % S = Sx + 1j*Sy;
 S = Fx_interp + 1j*Fy_interp;
 % 
- tol = 1e-6;    % remove tiny noise
- S(abs(S) < tol) = 0;
+tol = 1e-6;    % remove tiny noise
+S(abs(S) < tol) = 0;
 % 
 % %theta_dft = unwrap(angle(S));
- theta_dft = angle(S);
+theta_dft = angle(S);
 
 phi_offs = transpose(2*pi*f_interpy*wsize/(2*fs));
 
