@@ -18,8 +18,8 @@ b = fir1(n, (fc/(fs/2)), 'low');
 M_filt = M;
 M_filt(:,1:3) = filtfilt(b,1,M(:,1:3));
 
-Ax = M_filt(:,1);
-Ay = M_filt(:,2);
+x = M_filt(:,1);
+y = M_filt(:,2);
 
 %%
 figure("Name","raw+filtered")
@@ -65,10 +65,10 @@ wsize = 100;
 ovlap = wsize-1;
 Ndft = 1024;
 
-%win = hann(wsize); % window function can be changed to something else
-win = gausswin(wsize);
-[sx,fx,tx, Px] = spectrogram(Ax,win,ovlap,Ndft,fs);
-[sy,fy,ty, Py] = spectrogram(Ay,win,ovlap,Ndft,fs);
+win = hann(wsize); % window function can be changed to something else
+%win = gausswin(wsize);
+[sx,fx,tx, Px] = spectrogram(x,win,ovlap,Ndft,fs);
+[sy,fy,ty, Py] = spectrogram(y,win,ovlap,Ndft,fs);
 
 
 %%
@@ -111,15 +111,15 @@ curr_max_idx = 1;
 %Py_bp = zeros(size(sy));
 bp_width = 0.3; % in Hz
 max_jump = 3;
-for t = 1:size(sy,2)
-    if gyro_vals(t)<f_th 
+for t2 = 1:size(sy,2)
+    if gyro_vals(t2)<f_th 
         % center around gyro freq
         
-        idx = round(gyro_vals(t) / freq_res) + 1;
+        idx = round(gyro_vals(t2) / freq_res) + 1;
         idx = max(1, min(idx, Ndft));
         
         if abs(idx - curr_max_idx) <= max_jump
-            f0_idx(t) = idx;
+            f0_idx(t2) = idx;
             curr_max_idx = idx;
        % else
       %      f0_idx(t) = curr_max_idx;  % ignore jump
@@ -131,13 +131,13 @@ for t = 1:size(sy,2)
         hi_f = fy(curr_max_idx) + bp_width;
     
         f_pass = fy >= lo_f & fy <= hi_f;
-        sy_bp = zeros(size(sy(:,t)));
-        sy_bp(f_pass) = sy(f_pass, t);
+        sy_bp = zeros(size(sy(:,t2)));
+        sy_bp(f_pass) = sy(f_pass, t2);
         
         %Py_bp(:, t) = abs(sy_bp).^2 / (norm(win)^2);
     
         [~,max_idx] = max(abs(sy_bp));
-        f0_idx(t) = max_idx; % store
+        f0_idx(t2) = max_idx; % store
         curr_max_idx = max_idx; % update
     %end
 end
@@ -148,11 +148,11 @@ cols = 1:size(sy,2);   % cols for sub2ind
 Fky = sy(sub2ind(size(sy), f0_idx, cols))/sum(win);  % 
 Fkx = sx(sub2ind(size(sx), f0_idx, cols))/sum(win);
 
-figure;
+figure; hold on;
 plot(ty, real(Fky) ) % real-valued DFT
+plot(ty, real(Fkx) )
 %plot(real(Fkx),real(Fky))
 title("real(Fky)")
-hold on
 
 %%
 
@@ -200,24 +200,38 @@ plot(fy(f0_idx(frame_idx)-1), alpha(frame_idx), 'r*')
 plot(fy(f0_idx(frame_idx)+1), gamma(frame_idx), 'r*')
 
 
-% parabola coefficients
-a = 0.5*(alpha(frame_idx) - 2*beta(frame_idx) + gamma(frame_idx));
-b = 0.5*(gamma(frame_idx) - alpha(frame_idx));
-c = beta(frame_idx);
-
 xq = linspace(-1.2, 1.2, 200);  % fine resolution around the peak
-yq = a*xq.^2 + b*xq + c;        % parabola
+colors = {'r', 'g', 'b', 'm'};
 
-fq = (f0_idx(frame_idx)-1 + xq)*fs/Ndft; % convert to frequency
 
-% Plot
-plot(fq, yq, 'r--', 'LineWidth', 1.5)  % quadratic interpolation curve
+l = 20;
+frames = (frame_idx-l):(frame_idx+l);
 
+for k=1:length(frames)
+    idx = frames(k);
+
+    % parabola coefficients
+    a = 0.5*(alpha(frame_idx) - 2*beta(frame_idx) + gamma(frame_idx));
+    b = 0.5*(gamma(frame_idx) - alpha(frame_idx));
+    c = beta(frame_idx);
+    
+    plot(fy(1:100), abs(Fky_frame(1:100)))
+    
+    yq = a*xq.^2 + b*xq + c;        % parabola
+    
+    fq = (f0_idx(frame_idx)-1 + xq)*fs/Ndft; % convert to frequency
+
+    color_idx = mod(k-1,length(colors)) + 1;
+    plot(fq, yq, 'r--', 'LineWidth', 1.5)  % quadratic interpolation curve
+    plot(f_interp(idx), max_interp(idx), [colors{color_idx} 'o'], 'MarkerFaceColor', colors{color_idx}, 'DisplayName', sprintf('frame %d peak', idx));
+
+end
 
 %% Obtaining the phase at interpolated peak
 
 Nframes = length(f_interp);
 Fy_interp = zeros(1,Nframes);
+Fx_interp = zeros(1,Nframes);
 L = length(win);
 
 n = (0:(L-1)).'; 
@@ -227,30 +241,42 @@ for m = 1:Nframes
     start_idx = m;
     idx = start_idx:(start_idx + wsize-1);
 
-    y_frame = Ay(idx).*win(:);
+    y_frame = y(idx).*win(:);
+    x_frame = x(idx).*win(:);
     f0 = f_interp(m);
 
     %Fy_interp(m) = y_frame' *exp(-1j*2*pi*f0.*n/fs); % DFT at peak specifically
     Fy_interp(m) = y_frame' * exp(-1j*2*pi*f0.*(n - center_offset)/fs);
+    Fx_interp(m) = x_frame' * exp(-1j*2*pi*f0.*(n - center_offset)/fs);
 
 end
 
+S = Fx_interp + 1j*Fy_interp;
+tol = 1e-6;    % remove tiny noise
+S(abs(S) < tol) = 0;
+phi = angle(S);
+
 %% Diff. angle
-
-%delta_phi = angle(Fy_interp(2:end) ./ Fy_interp(1:end-1));  % size: 1 x (N-1)
-delta_phi =  angle(Fy_interp(2:end) .* conj(Fy_interp(1:end-1)) );
-
+%delta_phi =  angle(Fy_interp(2:end) .* conj(Fy_interp(1:end-1)) );
+figure;
+plot(t(wsize/2:end-wsize/2),phi)
 %%
 
-%other_angle = atan2(imag(Fky),real(Fkx));
-inst_freq = fs/(2*pi) *delta_phi;
-plot(ty(1:end-1), inst_freq, 'DisplayName', 'f_inst')
-hold on
+hops = 3; 
+
+delta_phi = unwrap(phi(hops+1:end)) - unwrap(phi(1:end-hops));
+
+inst_freq = fs/(2*pi*hops) *delta_phi;
+ty_hop = ty(1:end-hops);
+
+figure; hold on;
+
+plot(ty_hop, inst_freq, 'DisplayName', 'f_inst')
 plot(ty(1:end-1), f_interp(1:end-1), 'DisplayName', 'f interpolated')
 plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation')
-%plot(ty(1:end-1), f_est, 'DisplayName', 'corrected')
-%plot(ty(1:end-1), angle(Fy_interp(1:end-1)), 'DisplayName', 'phase1')
-%plot(ty(2:end), angle(Fy_interp(1:end-1)), 'DisplayName', 'phase2')
+%plot(t, x/10);
+%plot(t,y/10);
+p1 = plot(ty,gyro_vals/(wheel_circ*3.6),'DisplayName','Gyro');
 
 title('Frequency estimates')
 legend;
@@ -258,8 +284,9 @@ legend;
 
 %%
 figure;
-plot(ty, real(Fy_interp))
-
+%plot(ty, real(Fy_interp))
+%plot(real(Fy_interp), imag(Fy_interp))
+plot(real(Fx_interp),real(Fy_interp))
 
 %%
 su = cumsum(delta_phi);
@@ -288,12 +315,17 @@ end
 num_segments = 200;
 cmap = parula(num_segments);
 figure; hold on;
+
 for i = 1:num_segments
     k1 = intervals(i);
     k2 = intervals(i+1);
-    plot(real(Fky(k1:k2)), imag(Fky(k1:k2)), '-','Color', cmap(i,:), 'LineWidth', 0.5);
-    %plot(real(Fy_interp(k1:k2)), imag(Fy_interp(k1:k2)), '-','Color', cmap(i,:), 'LineWidth', 0.5);
+    plot(real(S(k1:k2)), imag(S(k1:k2)), '-','Color', cmap(i,:), 'LineWidth', 0.5);
 end
+plot(real(S(1)), imag(S(1)), 'ro') 
+plot(real(S(k2)), imag(S(k2)), 'bo') 
+
+
+grid on
 
 axis equal;
 xlabel('Real [rad/s]');
