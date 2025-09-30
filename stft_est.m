@@ -5,7 +5,7 @@ clear
 
 accelScale = 1/9.82;
 
-M = readmatrix("recordings/recording_20250701_02.csv");
+M = readmatrix("recordings/recording_20250701_06.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -106,7 +106,7 @@ N = size(M,1);
 gyro_vals = -Gz(wsize/2:end-wsize/2)/360; % DPS/360 [1/s]
 freq_res = fs/Ndft;
 
-f_th = 1; % Roughly 6 km/h
+f_th = 2; % Roughly 6 km/h
 th_idx = round(f_th / freq_res) + 1;
 
 f0_idx = nan(1,size(sy,2));
@@ -142,9 +142,7 @@ for t = 1:size(sy,2)
 
         sy_bp(f_pass) = sy(f_pass, t);
         sx_bp(f_pass) = sx(f_pass, t);
-        
-        %Py_bp(:, t) = abs(sy_bp).^2 / (norm(win)^2);
-            
+                    
         % average peak of x and y
         [~,max_idx_x] = max(abs(sx_bp));
         [~,max_idx_y] = max(abs(sy_bp));
@@ -153,39 +151,6 @@ for t = 1:size(sy,2)
         curr_max_idx_y = max_idx_y; % update
     end
 end
-
-
-%%
-
-% f0_idx_dyn = zeros(1,size(sy,2));
-% 
-% Py_bp = zeros(size(sy));
-% bp_width = 0.3; % in Hz
-% curr_max_idx = 1; % current maximum frequency peak index
-% for t_idx = 1:size(sy,2)
-% 
-%     % obtain bp range from prev. window
-%     lo_f = max(0, fy(curr_max_idx) - bp_width);
-%     hi_f = fy(curr_max_idx) + bp_width;
-% 
-%     f_pass = fy >= lo_f & fy <= hi_f;
-%     sy_bp = zeros(size(sy(:,t_idx)));
-%     sy_bp(f_pass) = sy(f_pass, t_idx);
-% 
-%     Py_bp(:, t_idx) = abs(sy_bp).^2 / (norm(win)^2);
-% 
-%     [~,max_idx] = max(abs(sy_bp));
-%     f0_idx_dyn(t_idx) = max_idx; % store
-%     curr_max_idx = max_idx; % update
-% end
-
-%%
-% dc_magnitude = abs(sy(1,:));
-% figure;
-% plot(ty,dc_magnitude);
-% hold on
-% dc_magnitude = abs(sy(1,:)) + abs(sy(2,:)) + abs(sy(3,:));
-% plot(ty,dc_magnitude);
 
 %%
 figure;
@@ -219,6 +184,9 @@ hold on;
 plot(ty, v_lo, 'Color', colors{1},'LineStyle', styles{1}, 'LineWidth', 1.5);  % Lower band edge
 plot(ty, v_hi, 'Color', colors{1}, 'LineWidth', 1.5);  % Upper band edge
 plot(ty, v_peak, 'r-', 'LineWidth', 2);   % Tracked speed
+
+gyro_vals = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6 [km/h]
+p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
 
 % plot(ty, v_lo2, 'w--', 'LineWidth', 1.5);  % Lower band edge
 % plot(ty, v_hi2, 'w--', 'LineWidth', 1.5);  % Upper band edge
@@ -365,8 +333,6 @@ model_dft = @(t,b) cos(b{1}) + b{2};
 % %Sx = sx(sub2ind(size(sx), f0_idx, cols));  % values of S at wanted frequencies
 % %Sy = sy(sub2ind(size(sy), f0_idx, cols));
 % 
-% 
-% 
 % % phase offset estimate (phi_0)
 % S = Sx + 1j*Sy;
 S = Fx_interp + 1j*Fy_interp;
@@ -406,7 +372,6 @@ else
     ylabel(tl,"Acceleration [g]", 'Interpreter','latex', 'FontSize', 18);
 end
 
-%ax = [];
 ax(end+1) =nexttile;
 plot(t, Ax/accelScale,'DisplayName','raw x','LineWidth',1.5)
 hold on
