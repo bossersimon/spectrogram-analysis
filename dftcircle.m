@@ -262,7 +262,7 @@ figure;
 plot(t(wsize/2:end-wsize/2),phi)
 %%
 
-hops = 3; 
+hops = 5; 
 
 delta_phi = unwrap(phi(hops+1:end)) - unwrap(phi(1:end-hops));
 
@@ -276,7 +276,7 @@ plot(ty(1:end-1), f_interp(1:end-1), 'DisplayName', 'f interpolated')
 plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation')
 %plot(t, x/10);
 %plot(t,y/10);
-p1 = plot(ty,gyro_vals/(wheel_circ*3.6),'DisplayName','Gyro');
+p1 = plot(ty,gyro_vals,'DisplayName','Gyro');
 
 title('Frequency estimates')
 legend;
@@ -290,7 +290,7 @@ plot(real(Fx_interp),real(Fy_interp))
 
 %%
 su = cumsum(delta_phi);
-plot(ty(1:end-1), cumsum(delta_phi), 'DisplayName','dphi sum')
+plot(ty(1:end-3), cumsum(delta_phi), 'DisplayName','dphi sum')
 hold on
 Fkx_angle = angle(Fkx);
 plot(ty, unwrap(Fkx_angle) ,'DisplayName', 'unwr angle(Fxk)') 
@@ -307,7 +307,7 @@ legend
 % title('Complex Trajectory of DFT Coefficient Over Time');
 
 n = length(Fkx);
-k_step = 5;  % color update interval (e.g., every 5 frames)
+k_step = 30;  % color update interval (e.g., every 5 frames)
 intervals = 1:k_step:n;
 if intervals(end) < n
     intervals = [intervals, n];  % include final point
