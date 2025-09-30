@@ -6,7 +6,7 @@ clear all
 accelScale = 1/9.82; % scale accelerometer readings
 
 
-M = readmatrix("recordings/recording_20250701_02.csv");
+M = readmatrix("recordings/recording_20250701_06.csv");
 
 % Lowpass 
 fc = 6; 
@@ -71,11 +71,11 @@ ub = [5.5, 2*pi, max(Ay)];
 opts = optimoptions('lsqcurvefit', ...
     'Algorithm','levenberg-marquardt', ...
     'MaxFunctionEvaluations', 5000, ...
-     'Display', 'off'); % 'iter'
+     'Display', 'iter'); % 'iter'
 
-window_size = 90;
+window_size = 80;
 N = length(Ay);
-step = 45;
+step = 40;
 
 % preallocation
 n = floor((N - window_size) / step) + 1;
@@ -127,7 +127,7 @@ toc
 
 %%
 
-num_pts = 45;
+num_pts = 39;
 half_width = floor(num_pts/2);
 
 start_idx = center_idx - half_width;
@@ -143,14 +143,14 @@ y_plot = zeros(n, num_pts);
 fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
 set(fig, 'PaperOrientation', 'landscape');
 
-plot(t,Ax, 'Color', 'k', 'LineWidth',1)
+plot(t,Ax, 'Color', [0.6, 0.6, 0.6], 'LineWidth',1)
 hold on
 for k=1:n
     t_plot(k,:) = t_windows(k,start_idx:end_idx);
     x_plot(k,:) = x_fits(k,start_idx:end_idx);
     y_plot(k,:) = y_fits(k,start_idx:end_idx);
     
-    plot(t_plot(k,:), x_plot(k,:), 'LineWidth',2, 'LineStyle','-')
+    plot(t_plot(k,:), x_plot(k,:), 'LineWidth',2, 'LineStyle','-');
     %plot(t_plot(k,:), x_plot(k,:),'ro')
 end
 grid on
@@ -158,7 +158,7 @@ grid on
 %%
 
 fig = gcf;
-exportgraphics(fig, 'lsq01_.pdf', 'ContentType', 'vector');
+exportgraphics(fig, 'lsqnooffs2_.pdf', 'ContentType', 'vector');
 %%
 
 t_vec = reshape(t_plot.',1,[]);
@@ -221,6 +221,7 @@ plot(t_vec,x_vec,'DisplayName','xhat', 'LineWidth',2)
 hold on
 plot(t_vec,x_corrected,'DisplayName','xhat_ nooffset','LineWidth',2)
 legend
+grid on
 
 %%
 
@@ -253,8 +254,8 @@ by = fir1(n, (fc/(fs/2)), 'high');
 t = (0:N-1)*dt;
 t= transpose(t);
 
-Ax_filtered = filtfilt(by,1,Ax);
-Ay_filtered = filtfilt(by,1,Ay);
+Ax_filtered = filtfilt(by,1,M_filt(:,1));
+Ay_filtered = filtfilt(by,1,M_filt(:,2));
 
 figure;
 plot(t,atan2(Ay_filtered, Ax_filtered))
