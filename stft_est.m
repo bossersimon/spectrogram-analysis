@@ -637,7 +637,6 @@ exportgraphics(fig, 'GPSMap_01.pdf', 'ContentType', 'vector');
 
 %% This does not seem to work
 
-
 Gx_trunc = Gx(wsize/2:end-wsize/2);
 Gy_trunc = Gy(wsize/2:end-wsize/2);
 
@@ -651,16 +650,8 @@ plot(ty,heading_rate);
 hold on
 title('heading rate');
 
-fc = 1; 
-fs = 100;
-n = 100; % filter order
-by = fir1(n, (fc/(fs/2)), 'low');
-
-heading_filtered = filtfilt(by,1,heading_rate);
-plot(ty,heading_filtered)
-
-vx = v_peak.*cos(heading_filtered);
-vy = v_peak.*sin(heading_filtered);
+vx = v_peak.*cos(heading_rate);
+vy = v_peak.*sin(heading_rate);
 
 x = cumtrapz(ty, vx);
 y = cumtrapz(ty, vy);
