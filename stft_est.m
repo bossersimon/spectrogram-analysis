@@ -534,7 +534,7 @@ linkaxes(ax,"x")
 %% Distance, speed calculation
 
 
-gpslog = readmatrix("recordings/GPS/sensorLog_20250701_01.txt");
+gpslog = readmatrix("recordings/GPS/sensorLog_20250701_02.txt");
 
 time= gpslog(:,1);
 lat = gpslog(:,3);
@@ -585,8 +585,9 @@ vel_est = distances./diff(sample_times); % m/s
 %disp(vel_est);
 
 tot_dist = sum(distances);
-disp(tot_dist)
+disp("tot_dist: " + tot_dist)
 
+%%
 figure('Name','speed estimates')
 plot(ty,v_peak, 'DisplayName','Tracked Speed','LineWidth',2) % km/h
 hold on

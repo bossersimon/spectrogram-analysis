@@ -6,7 +6,7 @@ clear all
 accelScale = 1/9.82; % scale accelerometer readings
 
 
-M = readmatrix("recordings/recording_20250701_06.csv");
+M = readmatrix("recordings/recording_20250701_02.csv");
 
 % Lowpass 
 fc = 6; 
@@ -158,7 +158,7 @@ grid on
 %%
 
 fig = gcf;
-exportgraphics(fig, 'lsq05.pdf', 'ContentType', 'vector');
+%exportgraphics(fig, 'lsq05.pdf', 'ContentType', 'vector');
 %%
 
 t_vec = reshape(t_plot.',1,[]);
@@ -233,11 +233,11 @@ plot(t_vec, y_corrected)
 
 %%
 
-figure;
-plot(x_vec,y_vec)
-hold on
-plot(x_corrected,y_corrected)
-legend('estimate', 'estimate_nooffset')
+% figure;
+% plot(x_vec,y_vec)
+% hold on
+% plot(x_corrected,y_corrected)
+% legend('estimate', 'estimate_nooffset')
 
 %% phase from curve fit  
 
@@ -300,9 +300,16 @@ grid on
 
 linkaxes(ax,'x')
 
+%% Distance calculation
+
+unwr = unwrap(phase_corrected);
+d = unwr(end)*wheel_circ/(2*pi);
+
+disp("tot_dist: " +  d);
+
+
 
 %%
-
 
 fc = 1; 
 fs = 100;
