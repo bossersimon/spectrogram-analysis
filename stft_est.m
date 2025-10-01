@@ -116,9 +116,8 @@ f0_idx = nan(1,size(sy,2));
 curr_max_idx_y = 1;
 curr_max_idx_x = 1;
 
-%Py_bp = zeros(size(sy));
 bp_width = 0.3; % in Hz
-max_jump = 3;
+max_jump = 5;
 for t = 1:size(sy,2)
     if gyro_vals(t)<f_th 
         % use gyro derived freq
@@ -128,13 +127,16 @@ for t = 1:size(sy,2)
         if abs(idx - curr_max_idx_y) <= max_jump
             f0_idx(t) = idx;
             curr_max_idx_y = idx;
+            curr_max_idx_x = idx;
         else
             f0_idx(t) = curr_max_idx_y;  % ignore jump
         end
     else
         % obtain bp range from prev. window
-        lo_f = max(0, fy(curr_max_idx_y) - bp_width);
-        hi_f = fy(curr_max_idx_y) + bp_width;
+        curr_max_idx = round((curr_max_idx_y + curr_max_idx_x)/2)+1;
+
+        lo_f = max(0, fy(curr_max_idx) - bp_width);
+        hi_f = fy(curr_max_idx) + bp_width;
     
         f_pass = fy >= lo_f & fy <= hi_f;
         sy_bp = zeros(size(sy(:,t)));
@@ -147,8 +149,9 @@ for t = 1:size(sy,2)
         [~,max_idx_x] = max(abs(sx_bp));
         [~,max_idx_y] = max(abs(sy_bp));
 
-        f0_idx(t) = round((max_idx_x + max_idx_y)/2); % store
+        f0_idx(t) = round((max_idx_x + max_idx_y)/2)+1; % store
         curr_max_idx_y = max_idx_y; % update
+        curr_max_idx_x = max_idx_x;
     end
 end
 
@@ -203,8 +206,8 @@ legend('Lower Band Edge', 'Upper Band Edge', 'Tracked Speed','FontSize',18);
 
 f_vals = fy(f0_idx);
 
-%frame_idx = 4020;
-frame_idx = 5300;
+frame_idx = 4020;
+%frame_idx = 8506;
 
 Fky_frame = sy(:, frame_idx)/sum(win);
 Fkx_frame = sx(:, frame_idx)/sum(win);
@@ -393,13 +396,6 @@ legend('FontSize', 16)
 linkaxes(ax,"x")
 
 %%
-
-dphi = diff(thetax_est);
-
-plot(ty(1:end-1), dphi)
-
-
-%%
 fig = gcf;
 exportgraphics(fig, 'raw+recon_03.pdf', 'ContentType', 'vector');
 
@@ -444,9 +440,13 @@ title('Phase', 'FontSize', 20, 'Interpreter', 'latex');
 grid on
 
 linkaxes(ax,"x")
-%%
-plot(ty,tht)
+%% Total distance:
 
+plot(ty,tht)
+d = unwrap(tht);
+d = d(end)*wheel_circ/(2*pi);
+
+disp([d]);
 
 %% export
 
@@ -459,40 +459,6 @@ figure;
 plot(xhat, yhat)
 hold on
 %plot(Ax,Ay)
-
-%%
-
-fc = 1; 
-fs = 100;
-n = 100; % filter order
-by = fir1(n, (fc/(fs/2)), 'high');
-
-t = (0:N-1)*dt;
-t= transpose(t);
-
-Ax_filtered = filtfilt(by,1,Ax);
-Ay_filtered = filtfilt(by,1,Ay);
-
-xhat_filtered = filtfilt(by,1,xhat);
-yhat_filtered = filtfilt(by,1,yhat);
-
-figure;
-plot(t,Ax_filtered)
-hold on
-%plot(t,Ax_filtered,'mo')
-plot(ty,xhat_filtered)
-%plot(ty,xhat_filtered,'mo')
-grid on
-
-%mse = sum((Ax_filtered(:)-xhat(:)).^2)/(size(xhat,2));
-
-%%
-figure;
-plot(t,atan2(Ay_filtered,Ax_filtered))
-hold on
-%plot(t,atan2(Ay_filtered,Ax_filtered),'mo')
-plot(ty,atan2(yhat_filtered,xhat_filtered))
-%plot(ty,atan2(yhat_filtered,xhat_filtered),'mo')
 
 %%
 theta_raw  = atan2(Ay_filtered,Ax_filtered);
@@ -568,7 +534,7 @@ linkaxes(ax,"x")
 %% Distance, speed calculation
 
 
-gpslog = readmatrix("recordings/GPS/sensorLog_20250701_06.txt");
+gpslog = readmatrix("recordings/GPS/sensorLog_20250701_01.txt");
 
 time= gpslog(:,1);
 lat = gpslog(:,3);
@@ -583,6 +549,7 @@ geoplot(lat,lon,"-.",'LineWidth',1,'Color','r')
 geobasemap streets
 title("Car route")
 
+%%
 
 
 lat0 = lat(1);
@@ -610,20 +577,20 @@ dy = diff(y);
 time_sec = time/1000;
 datetime_array = datetime(time_sec, 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC');
 sample_times = seconds(datetime_array - datetime_array(1));
-disp(sample_times);
+%disp(sample_times);
 
-distances = (sqrt(dx.^2 + dy .^2));
+distances = sqrt(dx.^2 + dy.^2);
 
 vel_est = distances./diff(sample_times); % m/s
 %disp(vel_est);
 
 tot_dist = sum(distances);
-%disp(tot_dist)
+disp(tot_dist)
 
 figure('Name','speed estimates')
-plot(ty,v_peak, 'DisplayName','est') % km/h
+plot(ty,v_peak, 'DisplayName','Tracked Speed','LineWidth',2) % km/h
 hold on
-plot(sample_times(1:end-1)+4, vel_est*3.6, 'DisplayName','GPS')
+plot(sample_times(1:end-1)-14, vel_est*3.6, 'DisplayName','GPS approximate','LineWidth',2)
 legend
 grid on
 ylabel('speed [km/h]')
@@ -632,7 +599,7 @@ xlabel('time [s]')
 %%
 
 fig = gcf;
-exportgraphics(fig, 'GPSMap_01.pdf', 'ContentType', 'vector');
+exportgraphics(fig, 'GPSspeed.pdf', 'ContentType', 'vector');
 
 
 %% This does not seem to work
