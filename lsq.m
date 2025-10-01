@@ -49,10 +49,10 @@ for i = 1:3
 end
 linkaxes(ax,"x")
 
-%Ax = M_filt(:,1);
-%Ay = M_filt(:,2);
-Ax = M(:,1);
-Ay = M(:,2);
+Ax = M_filt(:,1);
+Ay = M_filt(:,2);
+%Ax = M(:,1);
+%Ay = M(:,2);
 
  
 wheel_circ = 1.82;
@@ -71,7 +71,7 @@ ub = [5.5, 2*pi, max(Ay)];
 opts = optimoptions('lsqcurvefit', ...
     'Algorithm','levenberg-marquardt', ...
     'MaxFunctionEvaluations', 5000, ...
-     'Display', 'iter'); % 'iter'
+     'Display', 'none'); % 'iter'
 
 window_size = 80;
 N = length(Ay);
@@ -158,7 +158,7 @@ grid on
 %%
 
 fig = gcf;
-exportgraphics(fig, 'lsqnooffs2_.pdf', 'ContentType', 'vector');
+exportgraphics(fig, 'lsq05.pdf', 'ContentType', 'vector');
 %%
 
 t_vec = reshape(t_plot.',1,[]);
@@ -196,6 +196,7 @@ if accelScale < 1
 else
     ylabel('Acceleration [g]')
 end
+
 xlabel('Time [s]')
 title('X-axis')
 grid on
@@ -226,6 +227,13 @@ grid on
 %%
 
 figure;
+plot(t_vec, x_corrected)
+hold on
+plot(t_vec, y_corrected)
+
+%%
+
+figure;
 plot(x_vec,y_vec)
 hold on
 plot(x_corrected,y_corrected)
@@ -233,14 +241,64 @@ legend('estimate', 'estimate_nooffset')
 
 %% phase from curve fit  
 
-arg_x = xparam_matrix(:,2);
-arg_y = yparam_matrix(:,2);
-phase_corrected = atan2(y_corrected,x_corrected);
+%arg_x = xparam_matrix(:,2);
+%arg_y = yparam_matrix(:,2);
+
+fx = abs(xparam_matrix(:,1));
+fy = abs(yparam_matrix(:,1));
+
+plot(fx, 'Color', [0 0 1 0.5])
+hold on
+plot(fy, 'Color', [0 1 0 0.5] )
+plot((fx+fy)/2, 'Color', 'r')
+grid on
+
+xlabel('Time [s]')
+ylabel('Rotational Frequency [Hz]')
 
 %% phase from atan2
 
-phase = atan2(y_corrected,x_corrected);
-plot(t_vec,phase)
+phase_corrected = atan2(y_corrected,x_corrected);
+
+
+figure;
+plot(t_vec,phase_corrected, 'LineWidth', 2)
+
+%% plots both curves and phase
+
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
+
+dt = 1/100;
+N = size(M,1);
+t = (0:N-1)*dt;
+t= transpose(t);
+tl = tiledlayout(2,1,"TileIndexing","columnmajor");
+xlabel(tl,'Time [s]','Interpreter','latex', 'FontSize', 20);
+
+ax = [];
+ax(end+1) =nexttile;
+plot(t_vec,y_corrected,'DisplayName','yhat', 'LineWidth',1.5)
+
+hold on
+plot(t_vec,x_corrected,'DisplayName','xhat','LineWidth',1.5)
+
+if accelScale < 1
+    ylabel("Acceleration [m/s$^2$]", 'Interpreter','latex', 'FontSize', 18);
+else
+    ylabel("Acceleration [g]", 'Interpreter','latex', 'FontSize', 18);
+end
+
+title('Time signals', 'FontSize', 20, 'Interpreter', 'latex');
+grid on
+legend
+
+ax(end+i)=nexttile;
+plot(t_vec, phase_corrected,'DisplayName','phase','LineWidth',1.5,'Color','b')
+hold on
+grid on
+
+linkaxes(ax,'x')
 
 
 %%
