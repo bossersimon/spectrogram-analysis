@@ -4,7 +4,7 @@
 clear all
 accelScale = 1;%/9.82;
 
-M = readmatrix("recordings/recording_20250701_02.csv");
+M = readmatrix("recordings/recording_20250701_06.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -259,10 +259,11 @@ phi = angle(S);
 %% Diff. angle
 %delta_phi =  angle(Fy_interp(2:end) .* conj(Fy_interp(1:end-1)) );
 figure;
-plot(t(wsize/2:end-wsize/2),phi)
+t_phi = t(wsize/2:end-wsize/2);
+plot(t_phi,phi)
 %%
 
-hops = 5; 
+hops = 1; 
 
 delta_phi = unwrap(phi(hops+1:end)) - unwrap(phi(1:end-hops));
 
@@ -271,26 +272,26 @@ ty_hop = ty(1:end-hops);
 
 figure; hold on;
 
-plot(ty_hop, inst_freq, 'DisplayName', 'f_inst')
-plot(ty(1:end-1), f_interp(1:end-1), 'DisplayName', 'f interpolated')
-plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation')
+plot(ty_hop, inst_freq, 'DisplayName', 'differencing', 'LineWidth',2)
+plot(ty(1:end-1), f_interp(1:end-1), 'DisplayName', 'interpolation','LineWidth',2)
+plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation', 'LineWidth',2)
 %plot(t, x/10);
 %plot(t,y/10);
 p1 = plot(ty,gyro_vals,'DisplayName','Gyro');
 
 title('Frequency estimates')
+xlabel('Time [s]')
+ylabel('Frequency [Hz]')
 legend;
+grid on
 
-
-%%
-figure;
-%plot(ty, real(Fy_interp))
-%plot(real(Fy_interp), imag(Fy_interp))
-plot(real(Fx_interp),real(Fy_interp))
+%% save figure
+fig = gcf;
+exportgraphics(fig, 'differencing02.pdf', 'ContentType', 'vector');
 
 %%
-su = cumsum(delta_phi);
-plot(ty(1:end-3), cumsum(delta_phi), 'DisplayName','dphi sum')
+%su = cumsum(delta_phi);
+plot(t_phi ,unwrap(phi), 'DisplayName','dphi sum')
 hold on
 Fkx_angle = angle(Fkx);
 plot(ty, unwrap(Fkx_angle) ,'DisplayName', 'unwr angle(Fxk)') 
@@ -307,19 +308,19 @@ legend
 % title('Complex Trajectory of DFT Coefficient Over Time');
 
 n = length(Fkx);
-k_step = 30;  % color update interval (e.g., every 5 frames)
+k_step = 1;  % color update interval (e.g., every 5 frames)
 intervals = 1:k_step:n;
 if intervals(end) < n
     intervals = [intervals, n];  % include final point
 end
-num_segments = 200;
-cmap = parula(num_segments);
+num_segments = 500;
+cmap = turbo(5);
 figure; hold on;
 
 for i = 1:num_segments
     k1 = intervals(i);
     k2 = intervals(i+1);
-    plot(real(S(k1:k2)), imag(S(k1:k2)), '-','Color', cmap(i,:), 'LineWidth', 0.5);
+    plot(real(S(k1:k2)), imag(S(k1:k2)), '-','Color', cmap(mod(i,5)+1,:), 'LineWidth', 1.5);
 end
 plot(real(S(1)), imag(S(1)), 'ro') 
 plot(real(S(k2)), imag(S(k2)), 'bo') 
