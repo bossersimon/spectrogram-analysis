@@ -92,8 +92,21 @@ p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
 legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest');
 
 
-%% Parameter estimation using STFT 
+% %% Parameter estimation using STFT 
 
+% f_vals = fy(f0_idx); % values of largest peaks in the sampled spectrum
+% 
+% cols = 1:size(sy,2);   % cols for sub2ind
+% Fky = sy(sub2ind(size(sy), f0_idx, cols))/sum(win);  % 
+% Fkx = sx(sub2ind(size(sx), f0_idx, cols))/sum(win);
+% 
+% %figure; hold on;
+% %plot(ty, real(Fky) ) % real-valued DFT
+% %plot(ty, real(Fkx) )
+% %plot(real(Fkx),real(Fky))
+% %title("real(Fky)")
+
+%%
 dt = 1/100;
 N = size(M,1);   
 
@@ -101,141 +114,205 @@ N = size(M,1);
 gyro_vals = -Gz(wsize/2:end-wsize/2)/360; % DPS/360 [1/s]
 freq_res = fs/Ndft;
 
-f_th = 1.7; % Roughly 6 km/h
+f_th = 2; % Roughly 6 km/h
 th_idx = round(f_th / freq_res) + 1;
 
-f0_idx = nan(1,size(sy,2));  % bin indices of largest peaks in the sampled spectrum
+f0_idx = nan(1,size(sy,2));
 
-curr_max_idx = 1;
+%%
 
-%Py_bp = zeros(size(sy));
+curr_max_idx_y = 1;
+curr_max_idx_x = 1;
+
 bp_width = 0.3; % in Hz
-max_jump = 3;
+max_jump = 5;
 for t2 = 1:size(sy,2)
     if gyro_vals(t2)<f_th 
-        % center around gyro freq
-        
+        % use gyro derived freq
         idx = round(gyro_vals(t2) / freq_res) + 1;
         idx = max(1, min(idx, Ndft));
-        
-        if abs(idx - curr_max_idx) <= max_jump
+
+        if abs(idx - curr_max_idx_y) <= max_jump
             f0_idx(t2) = idx;
-            curr_max_idx = idx;
-       % else
-      %      f0_idx(t) = curr_max_idx;  % ignore jump
+            curr_max_idx_y = idx;
+            curr_max_idx_x = idx;
+        else
+            f0_idx(t2) = curr_max_idx_y;  % ignore jump
         end
-    end
-    %else
+    else
         % obtain bp range from prev. window
+        curr_max_idx = round((curr_max_idx_y + curr_max_idx_x)/2)+1;
+
         lo_f = max(0, fy(curr_max_idx) - bp_width);
         hi_f = fy(curr_max_idx) + bp_width;
     
         f_pass = fy >= lo_f & fy <= hi_f;
         sy_bp = zeros(size(sy(:,t2)));
+        sx_bp = zeros(size(sy(:,t2)));
+
         sy_bp(f_pass) = sy(f_pass, t2);
-        
-        %Py_bp(:, t) = abs(sy_bp).^2 / (norm(win)^2);
-    
-        [~,max_idx] = max(abs(sy_bp));
-        f0_idx(t2) = max_idx; % store
-        curr_max_idx = max_idx; % update
-    %end
+        sx_bp(f_pass) = sx(f_pass, t2);
+                    
+        % average peak of x and y
+        [~,max_idx_x] = max(abs(sx_bp));
+        [~,max_idx_y] = max(abs(sy_bp));
+
+        f0_idx(t2) = round((max_idx_x + max_idx_y)/2); % store
+        curr_max_idx_y = max_idx_y; % update
+        curr_max_idx_x = max_idx_x;
+    end
 end
 
 f_vals = fy(f0_idx); % values of largest peaks in the sampled spectrum
 
-cols = 1:size(sy,2);   % cols for sub2ind
-Fky = sy(sub2ind(size(sy), f0_idx, cols))/sum(win);  % 
-Fkx = sx(sub2ind(size(sx), f0_idx, cols))/sum(win);
-
-figure; hold on;
-plot(ty, real(Fky) ) % real-valued DFT
-plot(ty, real(Fkx) )
-%plot(real(Fkx),real(Fky))
-title("real(Fky)")
+%%
+figure;
+plot(ty, f0_idx, 'DisplayName','f0_idx')
 
 %%
 
-% Display one DFT frame.
+f_peak = fy(f0_idx);        % Hz
+v_peak = f_peak * wheel_circ * 3.6;
+
+v_lo = max(v_peak - bp_width*wheel_circ*3.6, 0); 
+v_hi = v_peak + bp_width*wheel_circ*3.6;
+
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
+set(fig, 'PaperOrientation', 'landscape');
+
+imagesc(ty, v_car, 10*log10(Py));
+axis xy;
+xlabel('Time (s)');
+ylabel('Speed (km/h)');
+title('Spectrogram');
+colormap(bone);
+colorbar;
+
+colors = {'k', [0.3 0.3 0.3], [0.6 0.6 0.6], [0.9 0.9 0.9]};
+styles = {'-', '--', '-.', ':'};
+
+hold on;
+plot(ty, v_lo, 'Color', colors{1},'LineStyle', styles{1}, 'LineWidth', 1.5);  % Lower band edge
+plot(ty, v_hi, 'Color', colors{1}, 'LineWidth', 1.5);  % Upper band edge
+plot(ty, v_peak, 'r-', 'LineWidth', 2);   % Tracked speed
+
+gz = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6 [km/h]
+p1 = plot(ty,gz,'Color',[1.0, 0.4, 0.0]);
+
+% plot(ty, v_lo2, 'w--', 'LineWidth', 1.5);  % Lower band edge
+% plot(ty, v_hi2, 'w--', 'LineWidth', 1.5);  % Upper band edge
+% plot(ty, v_peak2, 'r-', 'LineWidth', 2);   % Tracked speed
+legend('Lower Band Edge', 'Upper Band Edge', 'Tracked Speed','FontSize',12);
+
+%%
+
 % Peak idx stored in f0_idx
-% Remaining issue is that the bin resolution is finite, and the peak
-% frequency jumps between bins. 
-% Should attempt to interpolate the spectrum.
+
+f_vals = fy(f0_idx);
 
 frame_idx = 4020;
+%frame_idx = 8506;
 
-Fky_frame = sy(:, frame_idx) / sum(win);
-Fkx_frame = sx(:, frame_idx) / sum(win);
+Fky_frame = sy(:, frame_idx)/sum(win);
+Fkx_frame = sx(:, frame_idx)/sum(win);
 
-plot(fy(1:100), abs(Fky_frame(1:100)))
+subplot(2,1,1);
+plot(fy(1:100), abs(Fky_frame(1:100)), 'b', "DisplayName", "y")
 hold on
+plot(fx(1:100), abs(Fkx_frame(1:100)), 'r', "DisplayName","x")
+legend
+grid on
+
 %plot(f0_idx(frame_idx), f_vals(frame_idx), 'r*') 
-plot(f_vals(frame_idx), abs(Fky_frame(f0_idx(frame_idx))), 'r*');
+plot(f_vals(frame_idx), abs(Fky_frame(f0_idx(frame_idx))), 'b*');
+plot(f_vals(frame_idx), abs(Fkx_frame(f0_idx(frame_idx))), 'r*');
 
+win_idx = frame_idx : (frame_idx + wsize - 1);
 
+t0 = (win_idx - 1) / fs;
+%t0 = (ty(frame_idx) - (wsize/2)/fs) : (1/fs) : (ty(frame_idx) + (wsize/2 - 1)/fs);
+subplot(2,1,2);
+%plot(tx(frame_idx-wsize/2:frame_idx+wsize/2-1), win.*Ax(frame_idx-wsize/2:frame_idx+wsize/2-1),'DisplayName',"x")
+plot(t0, win.*x(win_idx),'DisplayName',"x")
+hold on
+plot(t0, win.*y(win_idx),'DisplayName',"x")
+%plot(ty(frame_idx-wsize/2:frame_idx+wsize/2-1), win.*Ay(frame_idx-wsize/2:frame_idx+wsize/2-1), "DisplayName", 'y')
+legend
+grid on
 
-%% Quadratic spectral peak interpolation
-
+%%
 cols = 1:size(sy, 2);
-alpha = abs(sy(sub2ind(size(sy), max(1,f0_idx-1), cols)))/sum(win); 
-beta  = abs(sy(sub2ind(size(sy), f0_idx, cols)))/sum(win);  
-gamma = abs(sy(sub2ind(size(sy), f0_idx+1, cols)))/sum(win); 
 
+alphay = abs(sy(sub2ind(size(sy), max(1,f0_idx-1), cols)))/sum(win); 
+betay  = abs(sy(sub2ind(size(sy), f0_idx, cols)))/sum(win);  
+gammay = abs(sy(sub2ind(size(sy), f0_idx+1, cols)))/sum(win); 
 
-p = 0.5*(alpha-gamma)./(alpha- 2*beta + gamma); % fractional offset 
+alphax = abs(sx(sub2ind(size(sy), max(1,f0_idx-1), cols)))/sum(win); 
+betax  = abs(sx(sub2ind(size(sy), f0_idx, cols)))/sum(win);  
+gammax = abs(sx(sub2ind(size(sy), f0_idx+1, cols)))/sum(win);
 
-k_interp = f0_idx(:) + p(:); % peak location in fractional bins
+py = 0.5*(alphay-gammay)./(alphay- 2*betay + gammay); % fractional offset
+px = 0.5*(alphax-gammax)./(alphax- 2*betax + gammax);
 
-f_interp = (k_interp(:)-1)*fs/Ndft; % corresponding peak frequency
+k_interpy = f0_idx(:) + py(:); % peak location in fractional bins
+k_interpx = f0_idx(:) + px(:);
 
-max_interp = beta - (1/4) * (alpha - gamma) .* p; % peak magnitude estimate
+f_interpy = max((k_interpy(:)-1)*fs/Ndft,0); % corresponding peak frequency
+f_interpx = max((k_interpx(:)-1)*fs/Ndft,0);
+f_interp_avg = (f_interpy+f_interpx)/2;
+
+max_interpy = betay - (1/4) * (alphay - gammay) .* py; % peak magnitude estimate
+max_interpx = betax - (1/4) * (alphax - gammax) .* px;
+max_interp_avg = (max_interpx+max_interpy)/2;
 
 plot(fy(1:100), abs(Fky_frame(1:100)))
 hold on
-plot(fy(f0_idx(frame_idx)), abs(Fky_frame(f0_idx(frame_idx))), 'go');
-plot(f_interp(frame_idx), max_interp(frame_idx) , 'bo') % <---interpolated peak
+plot(fy(1:100), abs(Fkx_frame(1:100)), 'r')
 
-plot(fy(f0_idx(frame_idx)-1), alpha(frame_idx), 'r*')
+plot(fy(f0_idx(frame_idx)), abs(Fky_frame(f0_idx(frame_idx))), 'go'); % bin peak
+plot(f_interpy(frame_idx), max_interpy(frame_idx) , 'bo') % <---interpolated peak
+plot(f_interpx(frame_idx), max_interpx(frame_idx) , 'bo')
+plot(f_interp_avg(frame_idx), max_interp_avg(frame_idx), 'pentagram', 'Color', 'm')
+
+plot(fy(f0_idx(frame_idx)-1), alphay(frame_idx), 'r*')
 %plot(fy(f0_idx(frame_idx)), beta(frame_idx), 'r*')
-plot(fy(f0_idx(frame_idx)+1), gamma(frame_idx), 'r*')
+plot(fy(f0_idx(frame_idx)+1), gammay(frame_idx), 'r*')
 
+plot(fx(f0_idx(frame_idx)-1), alphax(frame_idx), 'r*')
+%plot(fy(f0_idx(frame_idx)), beta(frame_idx), 'r*')
+plot(fx(f0_idx(frame_idx)+1), gammax(frame_idx), 'r*')
+
+
+% parabola coefficients
+ay = 0.5*(alphay(frame_idx) - 2*betay(frame_idx) + gammay(frame_idx));
+by = 0.5*(gammay(frame_idx) - alphay(frame_idx));
+cy = betay(frame_idx);
+
+ax = 0.5*(alphax(frame_idx) - 2*betax(frame_idx) + gammax(frame_idx));
+bx = 0.5*(gammax(frame_idx) - alphax(frame_idx));
+cx = betax(frame_idx);
 
 xq = linspace(-1.2, 1.2, 200);  % fine resolution around the peak
-colors = {'r', 'g', 'b', 'm'};
+yqy = ay*xq.^2 + by*xq + cy;        % parabola
+yqx = ax*xq.^2 + bx*xq + cx; 
 
+fq = (f0_idx(frame_idx)-1 + xq)*fs/Ndft; % convert to frequency
 
-l = 20;
-frames = (frame_idx-l):(frame_idx+l);
+% Plot
+plot(fq, yqy, 'r--', 'LineWidth', 1.5)  % quadratic interpolation curve
+plot(fq, yqx, 'r--', 'LineWidth', 1.5)
 
-for k=1:length(frames)
-    idx = frames(k);
+yq_avg = (yqy+yqx)/2;
+plot(fq, yq_avg, 'r--', 'LineWidth', 1.5)
 
-    % parabola coefficients
-    a = 0.5*(alpha(frame_idx) - 2*beta(frame_idx) + gamma(frame_idx));
-    b = 0.5*(gamma(frame_idx) - alpha(frame_idx));
-    c = beta(frame_idx);
-    
-    plot(fy(1:100), abs(Fky_frame(1:100)))
-    
-    yq = a*xq.^2 + b*xq + c;        % parabola
-    
-    fq = (f0_idx(frame_idx)-1 + xq)*fs/Ndft; % convert to frequency
+%%
 
-    color_idx = mod(k-1,length(colors)) + 1;
-    plot(fq, yq, 'r--', 'LineWidth', 1.5)  % quadratic interpolation curve
-    plot(f_interp(idx), max_interp(idx), [colors{color_idx} 'o'], 'MarkerFaceColor', colors{color_idx}, 'DisplayName', sprintf('frame %d peak', idx));
-
-end
-
-%% Obtaining the phase at interpolated peak
-
-Nframes = length(f_interp);
+Nframes = length(f_interpy);
 Fy_interp = zeros(1,Nframes);
 Fx_interp = zeros(1,Nframes);
-L = length(win);
 
-n = (0:(L-1)).'; 
-center_offset = (L-1)/2;
+L = length(win);
+n = (0:(L-1)).';
 
 for m = 1:Nframes
     start_idx = m;
@@ -243,12 +320,11 @@ for m = 1:Nframes
 
     y_frame = y(idx).*win(:);
     x_frame = x(idx).*win(:);
-    f0 = f_interp(m);
 
-    %Fy_interp(m) = y_frame' *exp(-1j*2*pi*f0.*n/fs); % DFT at peak specifically
-    Fy_interp(m) = y_frame' * exp(-1j*2*pi*f0.*(n - center_offset)/fs);
-    Fx_interp(m) = x_frame' * exp(-1j*2*pi*f0.*(n - center_offset)/fs);
+    f0 = f_interpy(m);
 
+    Fy_interp(m) = y_frame' *exp(-1j*2*pi*f0.*n/fs);
+    Fx_interp(m) = x_frame' *exp(-1j*2*pi*f0.*n/fs);
 end
 
 S = Fx_interp + 1j*Fy_interp;
@@ -256,16 +332,28 @@ tol = 1e-6;    % remove tiny noise
 S(abs(S) < tol) = 0;
 phi = angle(S);
 
+phi_offs = transpose(2*pi*f_interpy*wsize/(2*fs));
+theta = phi+phi_offs;
+tht = wrapToPi(theta);
+
+%%
+plot(f_interpy)
+hold on
+plot(f_vals)
+
 %% Diff. angle
 %delta_phi =  angle(Fy_interp(2:end) .* conj(Fy_interp(1:end-1)) );
 figure;
 t_phi = t(wsize/2:end-wsize/2);
-plot(t_phi,phi)
+plot(t_phi,tht)
+
 %%
+plot(t_phi, unwrap(tht))
 
-hops = 1; 
+%%
+hops = 5; 
 
-delta_phi = unwrap(phi(hops+1:end)) - unwrap(phi(1:end-hops));
+delta_phi = unwrap(tht(hops+1:end)) - unwrap(tht(1:end-hops));
 
 inst_freq = fs/(2*pi*hops) *delta_phi;
 ty_hop = ty(1:end-hops);
@@ -273,7 +361,7 @@ ty_hop = ty(1:end-hops);
 figure; hold on;
 
 plot(ty_hop, inst_freq, 'DisplayName', 'differencing', 'LineWidth',2)
-plot(ty(1:end-1), f_interp(1:end-1), 'DisplayName', 'interpolation','LineWidth',2)
+plot(ty(1:end-1), f_interpy(1:end-1), 'DisplayName', 'interpolation','LineWidth',2)
 plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation', 'LineWidth',2)
 %plot(t, x/10);
 %plot(t,y/10);
