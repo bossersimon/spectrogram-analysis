@@ -333,7 +333,7 @@ S(abs(S) < tol) = 0;
 phi = angle(S);
 
 phi_offs = transpose(2*pi*f_interpy*wsize/(2*fs));
-theta = phi+phi_offs;
+theta = unwrap(phi)+phi_offs;
 tht = wrapToPi(theta);
 
 %%
@@ -348,10 +348,10 @@ t_phi = t(wsize/2:end-wsize/2);
 plot(t_phi,tht)
 
 %%
-plot(t_phi, unwrap(tht))
-
+%plot(t_phi, unwrap(tht))
+plot(t_phi(1:end-1), diff(tht))
 %%
-hops = 5; 
+hops = 1; 
 
 delta_phi = unwrap(tht(hops+1:end)) - unwrap(tht(1:end-hops));
 
@@ -360,12 +360,13 @@ ty_hop = ty(1:end-hops);
 
 figure; hold on;
 
-plot(ty_hop, inst_freq, 'DisplayName', 'differencing', 'LineWidth',2)
+%plot(ty_hop, inst_freq, 'DisplayName', 'differencing', 'LineWidth',2)
 plot(ty(1:end-1), f_interpy(1:end-1), 'DisplayName', 'interpolation','LineWidth',2)
 plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation', 'LineWidth',2)
+plot(t,x/10+5)
 %plot(t, x/10);
 %plot(t,y/10);
-p1 = plot(ty,gyro_vals,'DisplayName','Gyro');
+%p1 = plot(ty,gyro_vals,'DisplayName','Gyro');
 
 title('Frequency estimates')
 xlabel('Time [s]')
@@ -375,7 +376,7 @@ grid on
 
 %% save figure
 fig = gcf;
-exportgraphics(fig, 'differencing02.pdf', 'ContentType', 'vector');
+exportgraphics(fig, 'differencing03.pdf', 'ContentType', 'vector');
 
 %%
 %su = cumsum(delta_phi);

@@ -94,7 +94,7 @@ cy.Label.String = 'Power/frequency [dB/Hz]';
 hold on;
 gyro_vals = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6 [km/h]
 p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
-legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest','FontSize', 18);
+legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest','FontSize', 12);
 
 
 %% Parameter estimation using STFT 
@@ -121,7 +121,7 @@ max_jump = 5;
 for t = 1:size(sy,2)
     if gyro_vals(t)<f_th 
         % use gyro derived freq
-        idx = round(gyro_vals(t) / freq_res) + 1;
+        idx = round(gyro_vals(t) / freq_res);
         idx = max(1, min(idx, Ndft));
 
         if abs(idx - curr_max_idx_y) <= max_jump
@@ -149,7 +149,7 @@ for t = 1:size(sy,2)
         [~,max_idx_x] = max(abs(sx_bp));
         [~,max_idx_y] = max(abs(sy_bp));
 
-        f0_idx(t) = round((max_idx_x + max_idx_y)/2)+1; % store
+        f0_idx(t) = round((max_idx_x + max_idx_y)/2); % store
         curr_max_idx_y = max_idx_y; % update
         curr_max_idx_x = max_idx_x;
     end
@@ -194,19 +194,15 @@ p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
 % plot(ty, v_lo2, 'w--', 'LineWidth', 1.5);  % Lower band edge
 % plot(ty, v_hi2, 'w--', 'LineWidth', 1.5);  % Upper band edge
 % plot(ty, v_peak2, 'r-', 'LineWidth', 2);   % Tracked speed
-legend('Lower Band Edge', 'Upper Band Edge', 'Tracked Speed','FontSize',18);
+legend('Lower Band Edge', 'Upper Band Edge', 'Tracked Speed','FontSize',12);
+
 
 %%
-
-% Display one DFT frame.
 % Peak idx stored in f0_idx
-% Remaining issue is that the bin resolution is finite, and the peak
-% frequency jumps between bins. 
-% Should attempt to interpolate the spectrum.
 
 f_vals = fy(f0_idx);
 
-frame_idx = 4020;
+frame_idx = 250;
 %frame_idx = 8506;
 
 Fky_frame = sy(:, frame_idx)/sum(win);
@@ -255,8 +251,8 @@ px = 0.5*(alphax-gammax)./(alphax- 2*betax + gammax);
 k_interpy = f0_idx(:) + py(:); % peak location in fractional bins
 k_interpx = f0_idx(:) + px(:);
 
-f_interpy = (k_interpy(:)-1)*fs/Ndft; % corresponding peak frequency
-f_interpx = (k_interpx(:)-1)*fs/Ndft;
+f_interpy = max((k_interpy(:)-1)*fs/Ndft,0); % corresponding peak frequency
+f_interpx = max((k_interpx(:)-1)*fs/Ndft,0);
 f_interp_avg = (f_interpy+f_interpx)/2;
 
 max_interpy = betay - (1/4) * (alphay - gammay) .* py; % peak magnitude estimate
@@ -294,6 +290,9 @@ xq = linspace(-1.2, 1.2, 200);  % fine resolution around the peak
 yqy = ay*xq.^2 + by*xq + cy;        % parabola
 yqx = ax*xq.^2 + bx*xq + cx; 
 
+frame_idx = 250;
+
+
 fq = (f0_idx(frame_idx)-1 + xq)*fs/Ndft; % convert to frequency
 
 % Plot
@@ -303,9 +302,6 @@ plot(fq, yqx, 'r--', 'LineWidth', 1.5)
 yq_avg = (yqy+yqx)/2;
 plot(fq, yq_avg, 'r--', 'LineWidth', 1.5)
 
-
-%%
-%f_vals = fy(f0_idx);
 
 %% Obtaining the phase at interpolated peak
 
@@ -397,7 +393,7 @@ linkaxes(ax,"x")
 
 %%
 fig = gcf;
-exportgraphics(fig, 'raw+recon_03.pdf', 'ContentType', 'vector');
+exportgraphics(fig, 'spectrogram2.pdf', 'ContentType', 'vector');
 
 %%
 
