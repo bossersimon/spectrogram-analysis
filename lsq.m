@@ -6,7 +6,7 @@ clear all
 accelScale = 1/9.82; % scale accelerometer readings
 
 
-M = readmatrix("recordings/recording_20250701_02.csv");
+M = readmatrix("recordings/recording_20250701_03.csv");
 
 % Lowpass 
 fc = 6; 

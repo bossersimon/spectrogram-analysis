@@ -1,4 +1,6 @@
 
+% fig = figure('Units','pixels','Position',[100 100 800 600]);
+
 %%  STFT estimation
 
 clear
