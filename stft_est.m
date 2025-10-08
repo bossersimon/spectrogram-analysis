@@ -7,7 +7,7 @@ clear
 
 accelScale = 1/9.82;
 
-M = readmatrix("recordings/recording_20250701_06.csv");
+M = readmatrix("recordings/recording_20250701_03.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -98,6 +98,31 @@ gyro_vals = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6 [km/h]
 p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
 legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest','FontSize', 12);
 
+
+%%
+
+PdB = 10*log10(Py);
+
+% --- make figure ---
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]);
+imagesc(ty, v_car, PdB);  % fx in kHz if desired
+axis xy;                   % ensure correct orientation
+colormap(jet);
+axis tight;                % remove extra margins
+axis off;                  % turn off all axes, ticks, etc.
+title('');                 % no title
+colorbar off;              % remove colorbar (we'll handle in pgfplots)
+
+% --- export vector graphic ---
+fname = 'myspectrogram';
+print('-depsc2', fname);                 % cropped EPS export
+system(['convert ' fname '.eps ' fname '.pdf']);  % use ImageMagick
+
+% --- print axis and color limits ---
+ax = gca;
+fprintf('xmin: %g\nxmax: %g\n', ax.XLim);
+fprintf('ymin: %g\nymax: %g\n', ax.YLim);
+fprintf('zmin: %g\nzmax: %g\n', ax.CLim);
 
 %% Parameter estimation using STFT 
 
@@ -204,8 +229,8 @@ legend('Lower Band Edge', 'Upper Band Edge', 'Tracked Speed','FontSize',12);
 
 f_vals = fy(f0_idx);
 
-frame_idx = 250;
-%frame_idx = 8506;
+%frame_idx = 250;
+frame_idx = 4200;
 
 Fky_frame = sy(:, frame_idx)/sum(win);
 Fkx_frame = sx(:, frame_idx)/sum(win);
@@ -292,7 +317,7 @@ xq = linspace(-1.2, 1.2, 200);  % fine resolution around the peak
 yqy = ay*xq.^2 + by*xq + cy;        % parabola
 yqx = ax*xq.^2 + bx*xq + cx; 
 
-frame_idx = 250;
+frame_idx = 4200;
 
 
 fq = (f0_idx(frame_idx)-1 + xq)*fs/Ndft; % convert to frequency
@@ -365,18 +390,19 @@ N = size(M,1);
 t = (0:N-1)*dt;
 t= transpose(t);
 tl = tiledlayout(2,1,"TileIndexing","columnmajor");
-xlabel(tl,'Time [s]','FontSize', 20, 'Interpreter', 'latex');
-
-if accelScale < 1
-    ylabel(tl,"Acceleration [m/s$^2$]", 'Interpreter','latex', 'FontSize', 18);
-else
-    ylabel(tl,"Acceleration [g]", 'Interpreter','latex', 'FontSize', 18);
-end
+%xlabel(tl,'Time [s]','FontSize', 20, 'Interpreter', 'latex');
+% 
+% if accelScale < 1
+%     ylabel(tl,"Acceleration [m/s$^2$]", 'Interpreter','latex', 'FontSize', 18);
+% else
+%     ylabel(tl,"Acceleration [g]", 'Interpreter','latex', 'FontSize', 18);
+% end
 
 ax(end+1) =nexttile;
 plot(t, Ax/accelScale,'DisplayName','raw x','LineWidth',1.5)
 hold on
 plot(tx,xhat/accelScale,'DisplayName','xhat','LineWidth',1.5)
+ylabel(ax,"Acceleration [m/s$^2$]", 'Interpreter','latex', 'FontSize', 18);
 
 title('x-axis','FontSize', 20, 'Interpreter', 'latex')
 grid on
@@ -386,6 +412,8 @@ ax(end+i)=nexttile;
 plot(t, Ay/accelScale,'DisplayName','raw y','LineWidth',1.5)
 hold on
 plot(ty,yhat/accelScale,'DisplayName','yhat','LineWidth',1.5)
+ylabel(ax(end),"Acceleration [m/s$^2$]", 'Interpreter','latex', 'FontSize', 18);
+xlabel(ax(end),'Time [s]','FontSize', 18, 'Interpreter', 'latex');
 
 title('y-axis','FontSize', 20, 'Interpreter', 'latex')
 grid on
@@ -453,15 +481,25 @@ exportgraphics(fig, 'phasedist_02.pdf', 'ContentType', 'vector');
 
 
 %% 
+
+fc = 0.5; 
+fs = 100;
+n = 100; % filter order
+by = fir1(n, (fc/(fs/2)), 'high');
+
+x_filt = filtfilt(by,1,Ax);
+y_filt = filtfilt(by,1,Ay);
+
+
+
 figure;
 plot(xhat, yhat)
 hold on
 %plot(Ax,Ay)
 
 %%
-theta_raw  = atan2(Ay_filtered,Ax_filtered);
-theta_raw2 = atan2(Ay,Ax);
-
+theta_raw  = atan2(Ay,Ax);
+theta_raw2  = atan2(y_filt,x_filt);
 
 fig = figure('Units','normalized','OuterPosition',[0 0 1 1]); 
 set(fig, 'PaperOrientation', 'landscape');
@@ -469,7 +507,7 @@ set(fig, 'PaperOrientation', 'landscape');
 %plot(ty,theta_raw, 'DisplayName','raw no offs')
 hold on
 %plot(ty,tht, 'DisplayName','est')
-plot(t,theta_raw2, 'DisplayName','raw','Color','b', 'LineWidth',1.5)
+plot(t,theta_raw, 'DisplayName','raw','Color','b', 'LineWidth',1.5)
 title("raw phase")
 xlabel('Time [s]')
 ylabel('Angle [rad]')
@@ -514,7 +552,6 @@ title('y-axis','FontSize', 20, 'Interpreter', 'latex')
 grid on
 legend('FontSize', 16)
 
-
 ax(end+1) = nexttile(2, [2 1]);
 plot(ty, tht, 'DisplayName','phi_{est}')
 hold on
@@ -524,7 +561,6 @@ title('phase','FontSize', 20, 'Interpreter', 'latex','LineWidth',1.5)
 grid on
 legend('FontSize', 16)
 ylabel("Angle [rad]", 'Interpreter','latex', 'FontSize', 18);
-
 
 linkaxes(ax,"x")
 

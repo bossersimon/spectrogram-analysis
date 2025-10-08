@@ -6,7 +6,7 @@ clear all
 accelScale = 1/9.82; % scale accelerometer readings
 
 
-M = readmatrix("recordings/recording_20250701_03.csv");
+M = readmatrix("recordings/recording_20250701_06.csv");
 
 % Lowpass 
 fc = 6; 
@@ -49,10 +49,10 @@ for i = 1:3
 end
 linkaxes(ax,"x")
 
-Ax = M_filt(:,1);
-Ay = M_filt(:,2);
-%Ax = M(:,1);
-%Ay = M(:,2);
+%Ax = M_filt(:,1);
+%Ay = M_filt(:,2);
+Ax = M(:,1);
+Ay = M(:,2);
 
  
 wheel_circ = 1.82;
