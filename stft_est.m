@@ -7,7 +7,7 @@ clear
 
 accelScale = 1/9.82;
 
-M = readmatrix("recordings/recording_20250701_03.csv");
+M = readmatrix("recordings/recording_20250701_06.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
