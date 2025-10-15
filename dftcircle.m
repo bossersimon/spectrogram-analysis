@@ -360,13 +360,13 @@ ty_hop = ty(1:end-hops);
 
 figure; hold on;
 
-%plot(ty_hop, inst_freq, 'DisplayName', 'differencing', 'LineWidth',2)
+plot(ty_hop, inst_freq, 'DisplayName', 'differencing', 'LineWidth',2)
 plot(ty(1:end-1), f_interpy(1:end-1), 'DisplayName', 'interpolation','LineWidth',2)
 plot(ty(1:end-1), f_vals(1:end-1) , 'DisplayName', 'no interpolation', 'LineWidth',2)
-plot(t,x/10+5)
+%plot(t,x/10+5)
 %plot(t, x/10);
 %plot(t,y/10);
-%p1 = plot(ty,gyro_vals,'DisplayName','Gyro');
+p1 = plot(ty,gyro_vals,'DisplayName','Gyro');
 
 title('Frequency estimates')
 xlabel('Time [s]')
