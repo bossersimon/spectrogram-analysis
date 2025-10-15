@@ -7,7 +7,7 @@ clear
 
 accelScale = 1/9.82;
 
-M = readmatrix("recordings/recording_20250701_03.csv");
+M = readmatrix("recordings/recording_20250701_06.csv");
 Gx = M(:,4);
 Gy = M(:,5);
 Gz = M(:,6);
@@ -103,9 +103,14 @@ legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest','FontSize', 12);
 
 PdB = 10*log10(Py);
 
+sz = size(PdB,2);
+indices = sz-700:sz;
+f_indices = 1:150;
+
+%%
 % --- make figure ---
 fig = figure('Units','normalized','OuterPosition',[0 0 1 1]);
-imagesc(ty, v_car, PdB);  % fx in kHz if desired
+imagesc(ty(indices), fy(f_indices), PdB(f_indices,indices));  % fx in kHz if desired
 axis xy;                   % ensure correct orientation
 colormap(jet);
 axis tight;                % remove extra margins
@@ -113,8 +118,13 @@ axis off;                  % turn off all axes, ticks, etc.
 title('');                 % no title
 colorbar off;              % remove colorbar (we'll handle in pgfplots)
 
+hold on
+%gyro_vals = -Gz(wsize/2:end-wsize/2)/360; % (DPS/360)*circ*3.6 [km/h]
+%p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
+%legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest','FontSize', 12);
+
 % --- export vector graphic ---
-fname = 'myspectrogram';
+fname = 'myspectrogram_with_overlay';
 print('-depsc2', fname);                 % cropped EPS export
 system(['convert ' fname '.eps ' fname '.pdf']);  % use ImageMagick
 
@@ -123,6 +133,13 @@ ax = gca;
 fprintf('xmin: %g\nxmax: %g\n', ax.XLim);
 fprintf('ymin: %g\nymax: %g\n', ax.YLim);
 fprintf('zmin: %g\nzmax: %g\n', ax.CLim);
+
+
+%% tikz plot
+
+gyro_vals = -Gz(wsize/2:end-wsize/2)/360; % (DPS/360)*circ*3.6 [km/h]
+p1 = plot(ty(indices),gyro_vals(indices),'Color',[1.0, 0.4, 0.0]);
+
 
 %% Parameter estimation using STFT 
 
@@ -133,7 +150,7 @@ N = size(M,1);
 gyro_vals = -Gz(wsize/2:end-wsize/2)/360; % DPS/360 [1/s]
 freq_res = fs/Ndft;
 
-f_th = 2; % Roughly 6 km/h
+f_th = 0; % Roughly 6 km/h
 th_idx = round(f_th / freq_res) + 1;
 
 f0_idx = nan(1,size(sy,2));
@@ -204,7 +221,8 @@ axis xy;
 xlabel('Time (s)');
 ylabel('Speed (km/h)');
 title('Spectrogram');
-colormap(bone);
+%colormap(bone);
+colormap(jet);
 colorbar;
 
 colors = {'k', [0.3 0.3 0.3], [0.6 0.6 0.6], [0.9 0.9 0.9]};
@@ -212,17 +230,66 @@ styles = {'-', '--', '-.', ':'};
 
 hold on;
 plot(ty, v_lo, 'Color', colors{1},'LineStyle', styles{1}, 'LineWidth', 1.5);  % Lower band edge
-plot(ty, v_hi, 'Color', colors{1}, 'LineWidth', 1.5);  % Upper band edge
 plot(ty, v_peak, 'r-', 'LineWidth', 2);   % Tracked speed
-
 gyro_vals = -Gz(wsize/2:end-wsize/2)*wheel_circ/100; % (DPS/360)*circ*3.6 [km/h]
 p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
+plot(ty, v_hi, 'Color', colors{1}, 'LineWidth', 1.5);  % Upper band edge
 
 % plot(ty, v_lo2, 'w--', 'LineWidth', 1.5);  % Lower band edge
 % plot(ty, v_hi2, 'w--', 'LineWidth', 1.5);  % Upper band edge
 % plot(ty, v_peak2, 'r-', 'LineWidth', 2);   % Tracked speed
-legend('Lower Band Edge', 'Upper Band Edge', 'Tracked Speed','FontSize',12);
+legend('Band Edges', 'Tracked Speed', 'Gyro', 'FontSize',12);
 
+%%
+
+indices = sz-600:sz;
+f_indices = 1:150;
+
+fig = figure('Units','normalized','OuterPosition',[0 0 1 1]);
+imagesc(ty(indices), fy(f_indices), PdB(f_indices,indices));  % fx in kHz if desired
+axis xy;                   % ensure correct orientation
+colormap(jet);
+axis tight;                % remove extra margins
+axis off;                  % turn off all axes, ticks, etc.
+title('');                 % no title
+colorbar off;              % remove colorbar (we'll handle in pgfplots)
+
+hold on
+%gyro_vals = -Gz(wsize/2:end-wsize/2)/360; % (DPS/360)*circ*3.6 [km/h]
+%p1 = plot(ty,gyro_vals,'Color',[1.0, 0.4, 0.0]);
+%legend(p1, 'Gyroscope signal overlay', 'Location', 'northwest','FontSize', 12);
+
+% --- export vector graphic ---
+fname = 'myspectrogram2';
+print('-depsc2', fname);                 % cropped EPS export
+system(['convert ' fname '.eps ' fname '.pdf']);  % use ImageMagick
+
+% --- print axis and color limits ---
+ax = gca;
+fprintf('xmin: %g\nxmax: %g\n', ax.XLim);
+fprintf('ymin: %g\nymax: %g\n', ax.YLim);
+fprintf('zmin: %g\nzmax: %g\n', ax.CLim);
+
+
+
+%%
+f_peak = fy(f0_idx);        % Hz
+%v_peak = f_peak * wheel_circ * 3.6;
+
+v_lo = max(f_peak - bp_width, 0); 
+v_hi = f_peak + bp_width;
+
+colors = {'k', [0.3 0.3 0.3], [0.6 0.6 0.6], [0.9 0.9 0.9]};
+styles = {'-', '--', '-.', ':'};
+
+hold on;
+plot(ty(indices), v_lo(indices), 'Color', colors{1},'LineStyle', styles{1}, 'LineWidth', 1.5);  % Lower band edge
+plot(ty(indices), f_peak(indices), 'r-', 'LineWidth', 2);   % Tracked speed
+gyro_vals = -Gz(wsize/2:end-wsize/2)/360; % (DPS/360)*circ*3.6 [km/h]
+p1 = plot(ty(indices),gyro_vals(indices),'Color',[1.0, 0.4, 0.0]);
+plot(ty(indices), v_hi(indices), 'Color', colors{1}, 'LineWidth', 1.5);  % Upper band edge
+
+legend('Band Edges', 'Tracked Speed', 'Gyro', 'FontSize',12);
 
 %%
 % Peak idx stored in f0_idx
